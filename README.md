@@ -43,7 +43,7 @@ Madrid
 
 ## Deployment to Vercel
 
-1. **Export to GitHub**: Use the export feature in AI Studio to push your code to a GitHub repository.
+1. **Export to GitHub**: Push your local code to a GitHub repository.
 2. **Connect to Vercel**: 
    - Sign in to [Vercel](https://vercel.com).
    - Click "Add New" -> "Project".
@@ -52,5 +52,5 @@ Madrid
    - Add any required environment variables (like `GEMINI_API_KEY` if applicable, though this app primarily uses Firebase).
 4. **Deploy**: Click "Deploy". Vercel will automatically build and host your application.
 
-## Developed with Google AI Studio
-This application was built and iterated upon using Google AI Studio Build.
+## Developed with Modern Web Technologies
+This application was built using a modern full-stack architecture focusing on performance and user mastery.
