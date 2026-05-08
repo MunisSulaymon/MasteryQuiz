@@ -5,8 +5,28 @@
 
 import { Question, QuizSet } from './types';
 
+function normalizeUzbekText(text: string): string {
+  if (!text) return '';
+  
+  // Repair common mojibake (UTF-8 bytes interpreted as ISO-8859-1/Windows-1252)
+  let repaired = text
+    .replace(/â€™/g, "'") // U+2019 right single quote
+    .replace(/â€˜/g, "'") // U+2018 left single quote
+    .replace(/â€[“”]/g, '"') // Double quotes variants
+    .replace(/â€“/g, "-") // En dash
+    .replace(/â€”/g, "--"); // Em dash
+
+  // Standardize Uzbek apostrophes and smart quotes
+  return repaired
+    .replace(/[\u2018\u2019\u201B\u02BB\u02BC\u0027\u0060\u00B4]/g, "'") 
+    .replace(/[\u201C\u201D\u201F\u00AB\u00BB]/g, '"')
+    .replace(/\u043E/g, "o") // Cyrillic small o to Latin o
+    .replace(/\u041E/g, "O") // Cyrillic capital O to Latin O
+    .trim();
+}
+
 export function parseSingleQuestion(block: string, id: string): Question | null {
-  const lines = block.split(/====/).map(l => l.trim()).filter(Boolean);
+  const lines = block.split(/====/).map(l => normalizeUzbekText(l)).filter(Boolean);
   if (lines.length < 2) return null;
 
   const stem = lines[0];
@@ -41,7 +61,8 @@ export function parseSingleQuestion(block: string, id: string): Question | null 
 export function parseQuestions(input: string): Question[] {
   if (!input || !input.trim()) return [];
 
-  const rawBlocks = input.split(/\+\+\+\+/).map(block => block.trim()).filter(Boolean);
+  const normalizedInput = normalizeUzbekText(input);
+  const rawBlocks = normalizedInput.split(/\+\+\+\+/).map(block => block.trim()).filter(Boolean);
   const now = Date.now();
   const questions: Question[] = [];
   
