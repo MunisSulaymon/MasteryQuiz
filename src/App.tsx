@@ -24,7 +24,7 @@ import {
   PartyPopper
 } from 'lucide-react';
 import { Question, QuizSet, AppView, QuizSession } from './types';
-import { parseQuestions, splitIntoSets, shuffleArray } from './utils';
+import { parseQuestions, splitIntoSets, shuffleArray, parseSingleQuestion } from './utils';
 import { auth } from './lib/firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { ensureUserRecord, saveOverallProgress, saveQuestionState, saveAllQuestionStates, loadUserData } from './services/quizService';
@@ -39,6 +39,9 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [isDataLoading, setIsDataLoading] = useState(false);
+  const [isParsing, setIsParsing] = useState(false);
+  const [parseProgress, setParseProgress] = useState(0);
+  const [parseError, setParseError] = useState<string | null>(null);
 
   // Auth Listener
   useEffect(() => {
@@ -113,15 +116,61 @@ export default function App() {
     setView('landing');
   };
 
-  const handleParse = () => {
-    const questions = parseQuestions(inputText);
-    if (questions.length === 0) {
-      alert("No valid questions found! Please check the format.");
-      return;
+  const handleParse = async () => {
+    if (!inputText.trim()) return;
+    
+    setIsParsing(true);
+    setParseProgress(0);
+    setParseError(null);
+    
+    // Tiny delay to show the skeleton/loader
+    await new Promise(resolve => setTimeout(resolve, 50));
+
+    try {
+      const rawBlocks = inputText.split('++++');
+      if (rawBlocks.length === 0) {
+        setParseError("No valid question blocks found. Use '++++' to separate questions.");
+        setIsParsing(false);
+        return;
+      }
+
+      const questions: Question[] = [];
+      const chunkSize = 20; // Small chunks for weak hardware
+      const now = Date.now();
+
+      for (let i = 0; i < rawBlocks.length; i += chunkSize) {
+        const chunk = rawBlocks.slice(i, i + chunkSize);
+        
+        for (let j = 0; j < chunk.length; j++) {
+          const block = chunk[j].trim();
+          if (!block) continue;
+          
+          const q = parseSingleQuestion(block, `q-${i + j}-${now}`);
+          if (q) questions.push(q);
+        }
+        
+        setParseProgress(Math.floor(((i + chunk.length) / rawBlocks.length) * 100));
+        
+        // Yield to main thread
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+
+      if (questions.length === 0) {
+        setParseError("No valid questions found! Please ensure your input follows the '====' and '++++' format.");
+        setIsParsing(false);
+        return;
+      }
+
+      const newSets = splitIntoSets(questions);
+      setSets(newSets);
+      setView('selection');
+    } catch (err) {
+      console.error("Parse error:", err);
+      setParseError("An unexpected error occurred while parsing. Please check your question format.");
+    } finally {
+      setIsParsing(false);
+      setParseProgress(0);
     }
-    const newSets = splitIntoSets(questions);
-    setSets(newSets);
-    setView('selection');
   };
 
   const startSet = (set: QuizSet) => {
@@ -172,6 +221,9 @@ export default function App() {
               onLogout={handleLogout}
               isDataLoading={isDataLoading}
               sets={sets}
+              isParsing={isParsing}
+              parseProgress={parseProgress}
+              parseError={parseError}
             />
           </motion.div>
         )}
@@ -264,8 +316,11 @@ interface LandingViewProps {
   onLogout: () => void;
   isDataLoading: boolean;
   sets: QuizSet[];
+  isParsing: boolean;
+  parseProgress: number;
+  parseError: string | null;
 }
-function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets }: LandingViewProps) {
+function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets, isParsing, parseProgress, parseError }: LandingViewProps) {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 md:py-20 flex flex-col items-center text-center">
       <div className="w-full flex justify-end mb-8">
@@ -304,6 +359,13 @@ function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout
         </div>
       )}
 
+      {parseError && (
+        <div className="w-full bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-2xl mb-8 flex items-center gap-3 text-left">
+          <XCircle className="w-6 h-6 flex-shrink-0" />
+          <p className="font-medium">{parseError}</p>
+        </div>
+      )}
+
       <div className="w-full bg-white p-8 rounded-[2.5rem] shadow-2xl border border-gray-100 mb-8 text-left">
         <textarea
           id="question-input"
@@ -317,11 +379,29 @@ function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout
       <button
         id="parse-btn"
         onClick={onParse}
-        disabled={!inputText.trim()}
-        className="group relative px-12 py-5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-xl shadow-xl transition-all hover:scale-105 active:scale-95 flex items-center gap-3"
+        disabled={!inputText.trim() || isParsing}
+        className="group relative px-12 py-5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl font-bold text-xl shadow-xl transition-all hover:scale-105 active:scale-95 flex flex-col items-center gap-1 min-w-[280px]"
       >
-        <span>{sets.length > 0 ? 'Continue Quiz' : 'Build Your Quiz'}</span>
-        <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+        {isParsing ? (
+          <>
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-6 h-6 animate-spin" />
+              <span>Parsing... {parseProgress}%</span>
+            </div>
+            <div className="w-full h-1 bg-white/20 rounded-full mt-2 overflow-hidden">
+              <motion.div 
+                className="h-full bg-white" 
+                initial={{ width: 0 }}
+                animate={{ width: `${parseProgress}%` }}
+              />
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center gap-3">
+            <span>{sets.length > 0 ? 'Continue Quiz' : 'Build Your Quiz'}</span>
+            <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+          </div>
+        )}
       </button>
     </div>
   );
@@ -561,7 +641,6 @@ function QuizView({ session, onComplete, onBack, onUpdateQuestion, title }: Quiz
 
                 return (
                   <motion.button
-                    layout
                     key={opt}
                     onClick={() => handleAnswer(opt)}
                     disabled={!!feedback}
@@ -627,9 +706,9 @@ function SummaryView({ session, onRetry, onNextSet, onHome, user, onLogout, onDr
   const minutes = Math.floor(duration / 60);
   const seconds = duration % 60;
   
-  const troublesome = session.questions
+  const troublesome = useRef(session.questions
     .filter(q => q.wrongCount >= 3)
-    .sort((a, b) => b.wrongCount - a.wrongCount);
+    .sort((a, b) => b.wrongCount - a.wrongCount)).current;
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-16 text-center">
