@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helpers
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // Entity Validators
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'lastUpdated']) 
+          && data.keys().size() == 2
+          && data.email is string && data.email.size() <= 256
+          && data.lastUpdated == request.time;
+    }
+
+    function isValidProgress(data) {
+      return data.keys().hasAll(['inputText', 'currentSetId', 'activeSetId', 'lastUpdated'])
+          && data.keys().size() == 4
+          && data.inputText is string && data.inputText.size() <= 200000
+          && data.currentSetId is number
+          && data.activeSetId is number
+          && data.lastUpdated == request.time;
+    }
+
+    function isValidQuestion(data) {
+      return data.keys().hasAll(['id', 'box', 'wrongCount', 'lastUpdated'])
+          && data.keys().size() == 4
+          && data.id is string && data.id.size() <= 128
+          && data.box in [1, 2, 3]
+          && data.wrongCount is number && data.wrongCount >= 0
+          && data.lastUpdated == request.time;
+    }
+
+    // Match blocks
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) 
+                    && incoming().email == existing().email;
+
+      match /config/progress {
+        allow get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidProgress(incoming());
+        allow update: if isOwner(userId) && isValidProgress(incoming())
+                      && incoming().diff(existing()).affectedKeys().hasOnly(['inputText', 'currentSetId', 'activeSetId', 'lastUpdated']);
+      }
+
+      match /questions/{questionId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(questionId) && isValidQuestion(incoming());
+        allow update: if isOwner(userId) && isValidQuestion(incoming())
+                      && incoming().id == existing().id 
+                      && incoming().diff(existing()).affectedKeys().hasOnly(['box', 'wrongCount', 'lastUpdated']);
+      }
+    }
+  }
+}

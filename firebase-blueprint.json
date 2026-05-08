@@ -1,0 +1,78 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "lastUpdated": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "email",
+        "lastUpdated"
+      ]
+    },
+    "QuizProgress": {
+      "title": "Quiz Progress",
+      "description": "The overall progress of a user's quiz session",
+      "type": "object",
+      "properties": {
+        "inputText": {
+          "type": "string"
+        },
+        "currentSetId": {
+          "type": "number"
+        },
+        "activeSetId": {
+          "type": "number"
+        }
+      }
+    },
+    "QuestionState": {
+      "title": "Question State",
+      "description": "The mastery state of a specific question",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "box": {
+          "type": "number",
+          "enum": [
+            1,
+            2,
+            3
+          ]
+        },
+        "wrongCount": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "id",
+        "box",
+        "wrongCount"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile"
+    },
+    "/users/{userId}/config/progress": {
+      "schema": "QuizProgress",
+      "description": "General progress state"
+    },
+    "/users/{userId}/questions/{questionId}": {
+      "schema": "QuestionState",
+      "description": "Mastery state for each question"
+    }
+  }
+}
