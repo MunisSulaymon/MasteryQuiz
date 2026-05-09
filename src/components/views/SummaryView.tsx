@@ -1,4 +1,4 @@
-import { useRef, memo } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { User } from 'firebase/auth';
 import { 
   Trophy, 
@@ -6,7 +6,10 @@ import {
   RotateCcw, 
   XCircle, 
   Zap, 
-  ArrowRight 
+  ArrowRight,
+  CloudOff,
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { Question, QuizSession } from '../../types';
 
@@ -18,9 +21,11 @@ interface SummaryViewProps {
   user: User | null;
   onLogout: () => void;
   onDrill: (questions: Question[]) => void;
+  onSave: (questions: Question[]) => Promise<void>;
 }
 
-export default function SummaryView({ session, onRetry, onNextSet, onHome, user, onLogout, onDrill }: SummaryViewProps) {
+export default function SummaryView({ session, onRetry, onNextSet, onHome, user, onLogout, onDrill, onSave }: SummaryViewProps) {
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const duration = Math.floor((session.endTime! - session.startTime) / 1000);
   const minutes = Math.floor(duration / 60);
   const seconds = duration % 60;
@@ -29,8 +34,46 @@ export default function SummaryView({ session, onRetry, onNextSet, onHome, user,
     .filter(q => q.wrongCount >= 3)
     .sort((a, b) => b.wrongCount - a.wrongCount)).current;
 
+  // Auto-save on mount
+  useEffect(() => {
+    const performSave = async () => {
+      if (!user) return;
+      setSaveStatus('saving');
+      try {
+        await onSave(session.questions);
+        setSaveStatus('saved');
+      } catch (err) {
+        console.error("Summary save failed:", err);
+        setSaveStatus('error');
+      }
+    };
+    performSave();
+  }, [user, session.questions, onSave]);
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-16 text-center">
+      {/* Save Status Banner */}
+      <div className="fixed top-20 left-1/2 -translate-x-1/2 z-[60]">
+        {saveStatus === 'saving' && (
+          <div className="bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-bold animate-pulse">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Saving Progress...
+          </div>
+        )}
+        {saveStatus === 'saved' && (
+          <div className="bg-emerald-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-bold">
+            <CheckCircle2 className="w-4 h-4" />
+            Progress Saved
+          </div>
+        )}
+        {saveStatus === 'error' && (
+          <div className="bg-amber-600 text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-bold">
+            <CloudOff className="w-4 h-4" />
+            Progress Not Saved (Offline/Permissions)
+          </div>
+        )}
+      </div>
+
       <div className="inline-flex bg-emerald-100 p-6 rounded-full mb-8">
         <Trophy className="w-16 h-16 text-emerald-600" />
       </div>

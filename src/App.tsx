@@ -44,6 +44,7 @@ export default function App() {
 
   // Load Stored Data from Firestore
   const loadStoredData = useCallback(async () => {
+    if (!user) return;
     setIsDataLoading(true);
     try {
       const data = await loadUserData();
@@ -75,7 +76,7 @@ export default function App() {
     } finally {
       setIsDataLoading(false);
     }
-  }, []);
+  }, [user]);
 
   // Auth Listener
   useEffect(() => {
@@ -84,17 +85,36 @@ export default function App() {
       setUser(u);
       setIsAuthLoading(false);
       if (u) {
-        await ensureUserRecord(u.email || '');
-        await loadStoredData();
+        try {
+          await ensureUserRecord(u.email || '');
+        } catch (e) {
+          console.error("User record sync failed", e);
+        }
       }
     });
     return unsubscribe;
-  }, [loadStoredData]);
+  }, []);
 
-  // Sync Progress to Firestore
   useEffect(() => {
-    if (user && inputText) {
-      saveOverallProgress(inputText, sets.length > 0 ? 1 : 0, activeSet?.id || 0, setSize);
+    if (user) {
+      loadStoredData();
+    }
+  }, [user, loadStoredData]);
+
+  // Manual save progress function
+  const handleSaveProgress = useCallback(async (finalQuestions?: Question[]) => {
+    if (!user) return;
+    try {
+      // Save overall progress
+      await saveOverallProgress(inputText, sets.length > 0 ? 1 : 0, activeSet?.id || 0, setSize);
+      
+      // Save question states if provided
+      if (finalQuestions && finalQuestions.length > 0) {
+        await saveAllQuestionStates(finalQuestions);
+      }
+    } catch (err) {
+      console.error("Delayed save error:", err);
+      // We don't throw here to avoid crashing the UI
     }
   }, [user, inputText, activeSet, setSize, sets.length]);
 
@@ -202,7 +222,7 @@ export default function App() {
   }, [activeSet?.id]);
 
   const handleUpdateQuestion = useCallback((q: Question) => {
-    saveQuestionState(q);
+    // Only update local state, NO FIRESTORE CALLS during quiz
     setAllQuestions(prev => prev.map(aq => aq.id === q.id ? q : aq));
   }, []);
 
@@ -259,8 +279,9 @@ export default function App() {
                     setView('summary');
                   } else {
                     setView('victory');
+                    // Save drill results if desired
+                    handleSaveProgress(finalSession.questions);
                   }
-                  saveAllQuestionStates(finalSession.questions);
                 }}
                 onBack={() => setView(view === 'quiz' ? 'selection' : 'summary')}
                 onUpdateQuestion={handleUpdateQuestion}
@@ -287,6 +308,7 @@ export default function App() {
                 onLogout={handleLogout}
                 user={user}
                 onDrill={startDrill}
+                onSave={handleSaveProgress}
               />
             </motion.div>
           )}
