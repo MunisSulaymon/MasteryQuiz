@@ -226,6 +226,17 @@ export default function App() {
     setAllQuestions(prev => prev.map(aq => aq.id === q.id ? q : aq));
   }, []);
 
+  const handleComplete = useCallback((finalSession: QuizSession) => {
+    if (view === 'quiz') {
+      setSession(finalSession);
+      setView('summary');
+    } else {
+      setView('victory');
+      // Save drill results if desired
+      handleSaveProgress(finalSession.questions);
+    }
+  }, [view, handleSaveProgress]);
+
   if (isAuthLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
@@ -273,16 +284,7 @@ export default function App() {
             <motion.div key={view} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <QuizView 
                 session={(view === 'quiz' ? session : drillSession)!} 
-                onComplete={(finalSession) => {
-                  if (view === 'quiz') {
-                    setSession(finalSession);
-                    setView('summary');
-                  } else {
-                    setView('victory');
-                    // Save drill results if desired
-                    handleSaveProgress(finalSession.questions);
-                  }
-                }}
+                onComplete={handleComplete}
                 onBack={() => setView(view === 'quiz' ? 'selection' : 'summary')}
                 onUpdateQuestion={handleUpdateQuestion}
                 title={view === 'drill' ? "Weakness Drill" : undefined}

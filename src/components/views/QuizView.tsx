@@ -58,45 +58,72 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
     setFeedback(isCorrect ? 'correct' : 'wrong');
 
     let updatedQ: Question | null = null;
-    const updatedQuestions = questions.map(q => {
-      if (q.id === activeQuestion.id) {
-        updatedQ = {
-          ...q,
-          box: isCorrect ? (Math.min(3, q.box + 1) as 1 | 2 | 3) : (1 as 1 | 2 | 3),
-          wrongCount: isCorrect ? q.wrongCount : q.wrongCount + 1,
-        } as Question;
-        return updatedQ;
+    setQuestions(prev => {
+      const updated = prev.map(q => {
+        if (q.id === activeQuestion.id) {
+          updatedQ = {
+            ...q,
+            box: isCorrect ? (Math.min(3, q.box + 1) as 1 | 2 | 3) : (1 as 1 | 2 | 3),
+            wrongCount: isCorrect ? q.wrongCount : q.wrongCount + 1,
+          } as Question;
+          return updatedQ;
+        }
+        return q;
+      });
+      
+      if (updatedQ) {
+        onUpdateQuestion(updatedQ);
       }
-      return q;
+      return updated;
     });
-    
-    setQuestions(updatedQuestions);
-    if (updatedQ) {
-      onUpdateQuestion(updatedQ);
-    }
 
     setTimeout(() => {
-      nextInQueue(currentQueue);
+      setCurrentQueue(prev => {
+        if (prev.length === 0) {
+          setRounds(r => r + 1);
+          return [];
+        }
+        const next = prev[0];
+        const rest = prev.slice(1);
+        
+        setActiveQuestion(next);
+        setShuffledOptions(shuffleArray(next.options));
+        setFeedback(null);
+        setTimer(20);
+        
+        return rest;
+      });
     }, 2000);
-  }, [feedback, activeQuestion, questions, currentQueue, onUpdateQuestion]);
+  }, [feedback, activeQuestion, onUpdateQuestion]);
 
-  const nextInQueue = useCallback((queue: Question[]) => {
+  const initQueue = useCallback(() => {
+    const box1 = questions.filter(q => q.box === 1);
+    const box2 = questions.filter(q => q.box === 2);
+    
+    const queue: Question[] = [
+      ...shuffleArray<Question>(box1),
+      ...shuffleArray<Question>(box2)
+    ];
+    
     if (queue.length === 0) {
-      setRounds(prev => prev + 1);
+      onComplete({ ...session, questions, rounds, endTime: Date.now() });
       return;
     }
+
     const next = queue[0];
-    const newQueue = queue.slice(1);
+    const rest = queue.slice(1);
     
     setActiveQuestion(next);
-    setCurrentQueue(newQueue);
+    setCurrentQueue(rest);
     setShuffledOptions(shuffleArray(next.options));
     setFeedback(null);
     setTimer(20);
-    
-    // We can't easily call startTimer here if it depends on handleAnswer which depends on nextInQueue...
-    // Let's just use effect for the timer
-  }, []);
+  }, [questions, rounds, onComplete, session]);
+
+  useEffect(() => {
+    initQueue();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rounds, session.setId]); 
 
   useEffect(() => {
     if (activeQuestion && !feedback) {
@@ -115,24 +142,6 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [activeQuestion, feedback, handleAnswer]);
-
-  useEffect(() => {
-    const box1 = questions.filter(q => q.box === 1);
-    const box2 = questions.filter(q => q.box === 2);
-    
-    const queue: Question[] = [
-      ...shuffleArray<Question>(box1),
-      ...shuffleArray<Question>(box2)
-    ];
-    
-    if (queue.length === 0) {
-      onComplete({ ...session, questions, rounds, endTime: Date.now() });
-      return;
-    }
-
-    setCurrentQueue(queue);
-    nextInQueue(queue);
-  }, [rounds, onComplete, session]); // Only re-run when rounds change (or initial)
 
   if (!activeQuestion) return null;
 
