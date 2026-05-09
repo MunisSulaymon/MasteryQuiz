@@ -8,26 +8,10 @@ import { Question, QuizSet } from './types';
 function normalizeUzbekText(text: string): string {
   if (!text) return '';
   
-  // Basic HTML sanitization: strip tags and script elements
-  let sanitized = text
-    .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, '') // Strip script tags
-    .replace(/<[^>]*>?/gm, '') // Strip all other tags
-    .replace(/&nbsp;/g, ' '); // Replace common HTML entities
-
-  // Repair common mojibake (UTF-8 bytes interpreted as ISO-8859-1/Windows-1252)
-  let repaired = sanitized
-    .replace(/â€™/g, "'") // U+2019 right single quote
-    .replace(/â€˜/g, "'") // U+2018 left single quote
-    .replace(/â€[“”]/g, '"') // Double quotes variants
-    .replace(/â€“/g, "-") // En dash
-    .replace(/â€”/g, "--"); // Em dash
-
-  // Standardize Uzbek apostrophes and smart quotes
-  return repaired
+  // Minimal normalization for Uzbek Latin characters and quotes
+  return text
     .replace(/[\u2018\u2019\u201B\u02BB\u02BC\u0027\u0060\u00B4]/g, "'") 
     .replace(/[\u201C\u201D\u201F\u00AB\u00BB]/g, '"')
-    .replace(/\u043E/g, "o") // Cyrillic small o to Latin o
-    .replace(/\u041E/g, "O") // Cyrillic capital O to Latin O
     .trim();
 }
 

@@ -210,7 +210,7 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
         <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-        <p className="text-gray-500 font-bold animate-pulse">Initializing Secure Connection...</p>
+        <p className="text-gray-500 font-bold animate-pulse">Loading App...</p>
       </div>
     );
   }
