@@ -20,7 +20,7 @@ interface SummaryViewProps {
   onDrill: (questions: Question[]) => void;
 }
 
-const SummaryView = memo(function SummaryView({ session, onRetry, onNextSet, onHome, user, onLogout, onDrill }: SummaryViewProps) {
+export default function SummaryView({ session, onRetry, onNextSet, onHome, user, onLogout, onDrill }: SummaryViewProps) {
   const duration = Math.floor((session.endTime! - session.startTime) / 1000);
   const minutes = Math.floor(duration / 60);
   const seconds = duration % 60;
@@ -97,6 +97,4 @@ const SummaryView = memo(function SummaryView({ session, onRetry, onNextSet, onH
       </div>
     </div>
   );
-});
-
-export default SummaryView;
+}

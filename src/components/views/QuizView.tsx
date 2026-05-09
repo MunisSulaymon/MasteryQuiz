@@ -19,7 +19,7 @@ interface QuizViewProps {
   title?: string;
 }
 
-const QuizView = memo(function QuizView({ session, onComplete, onBack, onUpdateQuestion, title }: QuizViewProps) {
+export default function QuizView({ session, onComplete, onBack, onUpdateQuestion, title }: QuizViewProps) {
   const [questions, setQuestions] = useState<Question[]>(() => [...session.questions]);
   const [currentQueue, setCurrentQueue] = useState<Question[]>([]);
   const [activeQuestion, setActiveQuestion] = useState<Question | null>(null);
@@ -265,6 +265,4 @@ const QuizView = memo(function QuizView({ session, onComplete, onBack, onUpdateQ
       </div>
     </div>
   );
-});
-
-export default QuizView;
+}

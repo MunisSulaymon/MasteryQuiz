@@ -19,7 +19,7 @@ interface LandingViewProps {
   authError: string | null;
 }
 
-const LandingView = memo(function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets, isParsing, parseProgress, parseError, authError }: LandingViewProps) {
+export default function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets, isParsing, parseProgress, parseError, authError }: LandingViewProps) {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 md:py-20 flex flex-col items-center text-center">
       <div className="w-full flex justify-end mb-8">
@@ -111,6 +111,4 @@ const LandingView = memo(function LandingView({ inputText, setInputText, onParse
       </button>
     </div>
   );
-});
-
-export default LandingView;
+}

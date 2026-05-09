@@ -14,7 +14,7 @@ interface SelectionViewProps {
   setSetSize: (n: number) => void;
 }
 
-const SelectionView = memo(function SelectionView({ sets, onSelect, onBack, onLogout, user, setSize, setSetSize }: SelectionViewProps) {
+export default function SelectionView({ sets, onSelect, onBack, onLogout, user, setSize, setSetSize }: SelectionViewProps) {
   const totalQuestions = sets.reduce((acc, s) => acc + s.questions.length, 0);
   
   const fullSets = Math.floor(totalQuestions / setSize);
@@ -93,6 +93,4 @@ const SelectionView = memo(function SelectionView({ sets, onSelect, onBack, onLo
       </div>
     </div>
   );
-});
-
-export default SelectionView;
+}

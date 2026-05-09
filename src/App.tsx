@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Loader2,
@@ -14,12 +14,12 @@ import { getAuthInstance } from './lib/firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { ensureUserRecord, saveOverallProgress, saveQuestionState, saveAllQuestionStates, loadUserData } from './services/quizService';
 
-// Lazy load views
-const LandingView = lazy(() => import('./components/views/LandingView'));
-const SelectionView = lazy(() => import('./components/views/SelectionView'));
-const QuizView = lazy(() => import('./components/views/QuizView'));
-const SummaryView = lazy(() => import('./components/views/SummaryView'));
-const VictoryView = lazy(() => import('./components/views/VictoryView'));
+// Import views directly to avoid lazy loading issues
+import LandingView from './components/views/LandingView';
+import SelectionView from './components/views/SelectionView';
+import QuizView from './components/views/QuizView';
+import SummaryView from './components/views/SummaryView';
+import VictoryView from './components/views/VictoryView';
 
 // Skeleton Loader Component
 function ViewSkeleton() {

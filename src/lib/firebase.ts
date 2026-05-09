@@ -10,10 +10,10 @@ let dbInstance: Firestore | null = null;
 
 export function getFirebase() {
   if (!appInstance) {
-    appInstance = initializeApp(firebaseConfig);
-    // Initialize App Check
-    if (typeof window !== 'undefined') {
-      try {
+    try {
+      appInstance = initializeApp(firebaseConfig);
+      // Initialize App Check ONLY if site key is present and we are in browser
+      if (typeof window !== 'undefined') {
         const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
         if (siteKey) {
           initializeAppCheck(appInstance, {
@@ -21,9 +21,11 @@ export function getFirebase() {
             isTokenAutoRefreshEnabled: true
           });
         }
-      } catch (e) {
-        console.error("Firebase App Check failed to initialize:", e);
       }
+    } catch (e) {
+      console.error("Firebase initialization failed:", e);
+      // Even if App Check fails, we want the appInstance to be set if possible
+      if (!appInstance) throw e;
     }
   }
   return appInstance;
