@@ -7,10 +7,12 @@ import {
   serverTimestamp,
   writeBatch
 } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { getAuthInstance, getDb, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Question, QuizSet } from '../types';
 
 export async function saveOverallProgress(inputText: string, currentSetId: number, activeSetId: number, setSize: number) {
+  const auth = getAuthInstance();
+  const db = getDb();
   if (!auth.currentUser) return;
   const path = `users/${auth.currentUser.uid}/config/progress`;
   try {
@@ -27,6 +29,8 @@ export async function saveOverallProgress(inputText: string, currentSetId: numbe
 }
 
 export async function saveQuestionState(q: Question) {
+  const auth = getAuthInstance();
+  const db = getDb();
   if (!auth.currentUser) return;
   const userId = auth.currentUser.uid;
   const path = `users/${userId}/questions/${q.id}`;
@@ -43,6 +47,8 @@ export async function saveQuestionState(q: Question) {
 }
 
 export async function saveAllQuestionStates(questions: Question[]) {
+  const auth = getAuthInstance();
+  const db = getDb();
   if (!auth.currentUser || questions.length === 0) return;
   const userId = auth.currentUser.uid;
   const batch = writeBatch(db);
@@ -65,6 +71,8 @@ export async function saveAllQuestionStates(questions: Question[]) {
 }
 
 export async function loadUserData() {
+  const auth = getAuthInstance();
+  const db = getDb();
   if (!auth.currentUser) return null;
   const userId = auth.currentUser.uid;
   
@@ -92,6 +100,8 @@ export async function loadUserData() {
 }
 
 export async function ensureUserRecord(email: string) {
+  const auth = getAuthInstance();
+  const db = getDb();
   if (!auth.currentUser) return;
   const path = `users/${auth.currentUser.uid}`;
   try {

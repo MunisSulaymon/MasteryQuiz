@@ -1,0 +1,98 @@
+import { User } from 'firebase/auth';
+import { motion } from 'motion/react';
+import { LogOut, Play, Info } from 'lucide-react';
+import { QuizSet } from '../../types';
+import { memo } from 'react';
+
+interface SelectionViewProps {
+  sets: QuizSet[];
+  onSelect: (s: QuizSet) => void;
+  onBack: () => void;
+  onLogout: () => void;
+  user: User | null;
+  setSize: number;
+  setSetSize: (n: number) => void;
+}
+
+const SelectionView = memo(function SelectionView({ sets, onSelect, onBack, onLogout, user, setSize, setSetSize }: SelectionViewProps) {
+  const totalQuestions = sets.reduce((acc, s) => acc + s.questions.length, 0);
+  
+  const fullSets = Math.floor(totalQuestions / setSize);
+  const remainder = totalQuestions % setSize;
+  const calcText = remainder === 0 
+    ? `${totalQuestions} questions ÷ ${setSize} = ${fullSets} sets of ${setSize}`
+    : `${totalQuestions} questions ÷ ${setSize} = ${fullSets} sets of ${setSize} + 1 set of ${remainder}`;
+
+  return (
+    <div className="max-w-4xl mx-auto px-6 py-20">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
+        <div>
+          <h2 className="text-4xl font-black mb-2">Select a Set</h2>
+          <p className="text-gray-500 font-medium">Found {totalQuestions} questions.</p>
+        </div>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={onBack}
+            className="px-6 py-3 bg-white hover:bg-gray-50 rounded-xl font-bold border border-gray-200 transition-all text-gray-600 shadow-sm"
+          >
+            {user ? 'Edit Questions' : 'Paste Again'}
+          </button>
+          {user && (
+            <button onClick={onLogout} className="p-3 bg-white hover:bg-red-50 text-red-500 rounded-xl border border-gray-200 transition-colors shadow-sm">
+              <LogOut className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-100 mb-12">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6">
+          <div className="space-y-1">
+            <h3 className="text-xl font-black text-gray-800">How many questions per set?</h3>
+            <p className="text-sm text-gray-500 font-medium">{calcText}</p>
+          </div>
+          <div className="flex items-center gap-4 bg-gray-50 px-6 py-3 rounded-2xl border border-gray-100">
+            <input 
+              type="range" 
+              min="10" 
+              max="50" 
+              value={setSize} 
+              onChange={(e) => setSetSize(parseInt(e.target.value))}
+              className="w-32 md:w-48 accent-indigo-600 cursor-pointer"
+            />
+            <span className="text-2xl font-black text-indigo-600 min-w-[2.5rem] text-center">{setSize}</span>
+          </div>
+        </div>
+        
+        <div className="flex items-start gap-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+          <Info className="w-6 h-6 text-indigo-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-indigo-900 font-medium">
+            <span className="font-bold">Science-backed tip:</span> Research suggests 20 questions per set for best memory retention. Smaller bites help you master concepts 100% before moving on.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        {sets.map((set) => (
+          <motion.button
+            key={set.id}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => onSelect(set)}
+            className="group p-8 bg-white rounded-[2rem] border border-gray-100 shadow-lg hover:shadow-2xl transition-all flex flex-col items-start text-left relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-full -mr-8 -mt-8 group-hover:bg-indigo-100 transition-colors" />
+            <span className="text-sm font-black text-indigo-600 uppercase tracking-widest mb-2">Set {set.id}</span>
+            <h3 className="text-2xl font-bold mb-4">{set.questions.length} Questions</h3>
+            <div className="flex gap-2 items-center text-gray-400 font-medium group-hover:text-indigo-600 transition-colors">
+              <span>Start session</span>
+              <Play className="w-4 h-4 fill-current" />
+            </div>
+          </motion.button>
+        ))}
+      </div>
+    </div>
+  );
+});
+
+export default SelectionView;

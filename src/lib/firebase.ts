@@ -1,25 +1,46 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { FirebaseApp, initializeApp } from 'firebase/app';
+import { Auth, getAuth } from 'firebase/auth';
+import { Firestore, getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
-export const auth = getAuth(app);
+let appInstance: FirebaseApp | null = null;
+let authInstance: Auth | null = null;
+let dbInstance: Firestore | null = null;
 
-// Initialize App Check
-if (typeof window !== 'undefined') {
-  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-  if (siteKey) {
-    initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider(siteKey),
-      isTokenAutoRefreshEnabled: true
-    });
+export function getFirebase() {
+  if (!appInstance) {
+    appInstance = initializeApp(firebaseConfig);
+    // Initialize App Check
+    if (typeof window !== 'undefined') {
+      const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+      if (siteKey) {
+        initializeAppCheck(appInstance, {
+          provider: new ReCaptchaV3Provider(siteKey),
+          isTokenAutoRefreshEnabled: true
+        });
+      }
+    }
   }
+  return appInstance;
 }
 
-async function testConnection() {
+export function getAuthInstance() {
+  if (!authInstance) {
+    authInstance = getAuth(getFirebase());
+  }
+  return authInstance;
+}
+
+export function getDb() {
+  if (!dbInstance) {
+    dbInstance = getFirestore(getFirebase(), firebaseConfig.firestoreDatabaseId);
+    testConnection(dbInstance);
+  }
+  return dbInstance;
+}
+
+async function testConnection(db: Firestore) {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
@@ -28,8 +49,6 @@ async function testConnection() {
     }
   }
 }
-
-testConnection();
 
 export enum OperationType {
   CREATE = 'create',
@@ -58,6 +77,7 @@ export interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const auth = getAuthInstance();
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
