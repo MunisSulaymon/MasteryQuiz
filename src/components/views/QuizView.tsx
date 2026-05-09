@@ -190,22 +190,22 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center overflow-y-auto p-3 md:p-6">
-        <div className="max-w-4xl w-full py-2 md:py-8">
+      <div className="flex-1 flex flex-col items-center overflow-y-auto p-4 md:p-6 pb-20">
+        <div className="max-w-4xl w-full">
            <AnimatePresence mode="wait">
               <motion.div 
                 key={activeQuestion.id}
-                initial={{ opacity: 0, x: 50 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -50 }}
-                className="mb-4 md:mb-10"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="mb-6 md:mb-10 pt-4"
               >
                 <div className="flex items-center gap-3 mb-2 md:mb-6 font-bold uppercase tracking-widest text-[9px] md:text-sm text-left">
                   <span className="px-2 py-0.5 border border-indigo-400/30 rounded text-indigo-400">Box {activeQuestion.box}</span>
                   <span className="text-slate-400">Question</span>
                 </div>
-                <h2 className={`font-black leading-tight text-center sm:text-left drop-shadow-sm ${
-                  activeQuestion.stem.length > 200 ? 'text-sm md:text-2xl' : activeQuestion.stem.length > 100 ? 'text-base md:text-3xl' : 'text-xl md:text-4xl'
+                <h2 className={`font-black leading-tight text-center sm:text-left drop-shadow-sm break-words ${
+                  activeQuestion.stem.length > 200 ? 'text-lg md:text-2xl' : activeQuestion.stem.length > 100 ? 'text-xl md:text-3xl' : 'text-2xl md:text-4xl'
                 }`}>
                   {activeQuestion.stem}
                 </h2>

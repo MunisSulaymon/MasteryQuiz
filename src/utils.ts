@@ -8,8 +8,25 @@ import { Question, QuizSet } from './types';
 function normalizeUzbekText(text: string): string {
   if (!text) return '';
   
-  // Minimal normalization for Uzbek Latin characters and quotes
-  return text
+  // Repair common mojibake (UTF-8 bytes misinterpreted as ISO-8859-1/Windows-1252)
+  // This handles the "Ð¾â€˜" type issues specifically for Uzbek characters
+  let repaired = text
+    .replace(/\u00D0\u00BE\u00E2\u20AC\u2018/g, "o'") // o' (Cyrillic o + smart quote)
+    .replace(/\u00D0\u00BE\u00E2\u20AC\u2122/g, "o'") // o'
+    .replace(/\u00D0\u00B3\u00E2\u20AC\u2018/g, "g'") // g'
+    .replace(/\u00D0\u00B3\u00E2\u20AC\u2122/g, "g'") // g'
+    .replace(/\u00D0\u00BE/g, "o") 
+    .replace(/\u00D0\u00B3/g, "g")
+    .replace(/\u00E2\u20AC\u2018/g, "'")
+    .replace(/\u00E2\u20AC\u2122/g, "'")
+    .replace(/\u00E2\u20AC\u0153/g, '"')
+    .replace(/\u00E2\u20AC\u009D/g, '"')
+    .replace(/â€™/g, "'")
+    .replace(/â€˜/g, "'")
+    .replace(/â€[“”]/g, '"');
+
+  // Standardize Uzbek apostrophes and smart quotes
+  return repaired
     .replace(/[\u2018\u2019\u201B\u02BB\u02BC\u0027\u0060\u00B4]/g, "'") 
     .replace(/[\u201C\u201D\u201F\u00AB\u00BB]/g, '"')
     .trim();
