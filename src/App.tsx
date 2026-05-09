@@ -3,14 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Loader2,
 } from 'lucide-react';
 import { Question, QuizSet, AppView, QuizSession } from './types';
 import { parseQuestions, splitIntoSets, parseSingleQuestion } from './utils';
-import { getAuthInstance } from './lib/firebase';
+import { auth } from './lib/firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { ensureUserRecord, saveOverallProgress, saveQuestionState, saveAllQuestionStates, loadUserData } from './services/quizService';
 
@@ -20,18 +20,6 @@ import SelectionView from './components/views/SelectionView';
 import QuizView from './components/views/QuizView';
 import SummaryView from './components/views/SummaryView';
 import VictoryView from './components/views/VictoryView';
-
-// Skeleton Loader Component
-function ViewSkeleton() {
-  return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-8 space-y-8 animate-pulse bg-slate-50">
-      <div className="w-24 h-24 bg-gray-200 rounded-full" />
-      <div className="w-64 h-8 bg-gray-200 rounded-lg" />
-      <div className="w-full max-w-2xl h-64 bg-gray-200 rounded-[2.5rem]" />
-      <div className="w-48 h-12 bg-gray-200 rounded-xl" />
-    </div>
-  );
-}
 
 export default function App() {
   const [view, setView] = useState<AppView>('landing');
@@ -91,12 +79,9 @@ export default function App() {
     }
   }, []);
 
-  // Auth Listener (Deferred until needed)
+  // Auth Listener
   useEffect(() => {
-    if (!firebaseInitialized) return;
-
     setIsAuthLoading(true);
-    const auth = getAuthInstance();
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       setIsAuthLoading(false);
@@ -106,7 +91,7 @@ export default function App() {
       }
     });
     return unsubscribe;
-  }, [firebaseInitialized, loadStoredData]);
+  }, [loadStoredData]);
 
   // Sync Progress to Firestore
   useEffect(() => {
@@ -117,11 +102,8 @@ export default function App() {
 
   const handleLogin = useCallback(async () => {
     setAuthError(null);
-    setFirebaseInitialized(true);
-    // Even if initialized, we want to trigger popup if not logged in
     setIsAuthLoading(true);
     try {
-      const auth = getAuthInstance();
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
     } catch (error: any) {
@@ -140,7 +122,6 @@ export default function App() {
   }, []);
 
   const handleLogout = useCallback(async () => {
-    const auth = getAuthInstance();
     await signOut(auth);
     setInputText('');
     setAllQuestions([]);
@@ -240,9 +221,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F0F2F5] text-[#1A1A1A] font-sans">
-      <Suspense fallback={<ViewSkeleton />}>
-        <AnimatePresence mode="wait">
-          {view === 'landing' && (
+      <AnimatePresence mode="wait">
+        {view === 'landing' && (
             <motion.div key="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <LandingView 
                 inputText={inputText} 
@@ -315,7 +295,6 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
-      </Suspense>
     </div>
   );
 }
