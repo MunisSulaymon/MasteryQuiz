@@ -16,9 +16,10 @@ interface LandingViewProps {
   isParsing: boolean;
   parseProgress: number;
   parseError: string | null;
+  authError: string | null;
 }
 
-const LandingView = memo(function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets, isParsing, parseProgress, parseError }: LandingViewProps) {
+const LandingView = memo(function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets, isParsing, parseProgress, parseError, authError }: LandingViewProps) {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 md:py-20 flex flex-col items-center text-center">
       <div className="w-full flex justify-end mb-8">
@@ -54,6 +55,13 @@ const LandingView = memo(function LandingView({ inputText, setInputText, onParse
         <div className="flex items-center gap-2 text-indigo-600 font-bold mb-4 animate-pulse">
           <Loader2 className="w-4 h-4 animate-spin" />
           <span>Restoring your progress...</span>
+        </div>
+      )}
+
+      {authError && (
+        <div className="w-full bg-orange-50 border border-orange-200 text-orange-700 px-6 py-4 rounded-2xl mb-8 flex items-center gap-3 text-left">
+          <XCircle className="w-6 h-6 flex-shrink-0" />
+          <p className="font-medium">{authError}</p>
         </div>
       )}
 

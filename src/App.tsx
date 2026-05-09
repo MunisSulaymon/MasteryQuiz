@@ -42,6 +42,7 @@ export default function App() {
   const [session, setSession] = useState<QuizSession | null>(null);
   const [drillSession, setDrillSession] = useState<QuizSession | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [authError, setAuthError] = useState<string | null>(null);
   
   // Lazy initialization of Firebase Auth listener
   const [firebaseInitialized, setFirebaseInitialized] = useState(false);
@@ -115,6 +116,7 @@ export default function App() {
   }, [user, inputText, activeSet, setSize, sets.length]);
 
   const handleLogin = useCallback(async () => {
+    setAuthError(null);
     setFirebaseInitialized(true);
     // Even if initialized, we want to trigger popup if not logged in
     setIsAuthLoading(true);
@@ -122,8 +124,17 @@ export default function App() {
       const auth = getAuthInstance();
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Login failed", error);
+    } catch (error: any) {
+      console.error("Login error:", error);
+      let message = "Failed to sign in with Google.";
+      if (error.code === 'auth/popup-blocked') {
+        message = "Login popup was blocked by your browser. Please allow popups for this site.";
+      } else if (error.code === 'auth/cancelled-popup-request') {
+        message = "Login was cancelled.";
+      } else if (error.message?.includes('App Check')) {
+        message = "Security check failed. Please refresh and try again.";
+      }
+      setAuthError(message);
       setIsAuthLoading(false);
     }
   }, []);
@@ -245,6 +256,7 @@ export default function App() {
                 isParsing={isParsing}
                 parseProgress={parseProgress}
                 parseError={parseError}
+                authError={authError}
               />
             </motion.div>
           )}

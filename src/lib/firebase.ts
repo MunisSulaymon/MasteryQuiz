@@ -13,12 +13,16 @@ export function getFirebase() {
     appInstance = initializeApp(firebaseConfig);
     // Initialize App Check
     if (typeof window !== 'undefined') {
-      const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-      if (siteKey) {
-        initializeAppCheck(appInstance, {
-          provider: new ReCaptchaV3Provider(siteKey),
-          isTokenAutoRefreshEnabled: true
-        });
+      try {
+        const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+        if (siteKey) {
+          initializeAppCheck(appInstance, {
+            provider: new ReCaptchaV3Provider(siteKey),
+            isTokenAutoRefreshEnabled: true
+          });
+        }
+      } catch (e) {
+        console.error("Firebase App Check failed to initialize:", e);
       }
     }
   }
