@@ -32,8 +32,6 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   
-  // Lazy initialization of Firebase Auth listener
-  const [firebaseInitialized, setFirebaseInitialized] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   
   const [isDataLoading, setIsDataLoading] = useState(false);
@@ -113,8 +111,6 @@ export default function App() {
         message = "Login popup was blocked by your browser. Please allow popups for this site.";
       } else if (error.code === 'auth/cancelled-popup-request') {
         message = "Login was cancelled.";
-      } else if (error.message?.includes('App Check')) {
-        message = "Security check failed. Please refresh and try again.";
       }
       setAuthError(message);
       setIsAuthLoading(false);

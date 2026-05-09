@@ -7,6 +7,23 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 
+// Test Firestore connection on boot
+import { doc, getDocFromServer } from 'firebase/firestore';
+
+async function testConnection() {
+  try {
+    await getDocFromServer(doc(db, 'test', 'connection'));
+    console.log("Firestore connection successful");
+  } catch (error) {
+    if(error instanceof Error && error.message.includes('the client is offline')) {
+      console.error("Please check your Firebase configuration. The client is offline.");
+    } else {
+      console.error("Firestore connection test failed:", error);
+    }
+  }
+}
+testConnection();
+
 export enum OperationType {
   CREATE = 'create',
   UPDATE = 'update',
