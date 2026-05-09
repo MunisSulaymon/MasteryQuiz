@@ -12,22 +12,29 @@ service cloud.firestore {
     function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
+    function isNotSpamming() {
+      // Allow if document doesn't exist (creating) or if 1 second has passed since last update
+      return !isSignedIn() || resource == null || request.time > resource.data.lastUpdated + duration.value(1, 's');
+    }
 
     // Entity Validators
     function isValidUser(data) {
       return data.keys().hasAll(['email', 'lastUpdated']) 
           && data.keys().size() == 2
           && data.email is string && data.email.size() <= 256
-          && data.lastUpdated == request.time;
+          && data.lastUpdated == request.time
+          && isNotSpamming();
     }
 
     function isValidProgress(data) {
-      return data.keys().hasAll(['inputText', 'currentSetId', 'activeSetId', 'lastUpdated'])
-          && data.keys().size() == 4
+      return data.keys().hasAll(['inputText', 'currentSetId', 'activeSetId', 'setSize', 'lastUpdated'])
+          && data.keys().size() == 5
           && data.inputText is string && data.inputText.size() <= 200000
           && data.currentSetId is number
           && data.activeSetId is number
-          && data.lastUpdated == request.time;
+          && data.setSize is number
+          && data.lastUpdated == request.time
+          && isNotSpamming();
     }
 
     function isValidQuestion(data) {
@@ -36,7 +43,8 @@ service cloud.firestore {
           && data.id is string && data.id.size() <= 128
           && data.box in [1, 2, 3]
           && data.wrongCount is number && data.wrongCount >= 0
-          && data.lastUpdated == request.time;
+          && data.lastUpdated == request.time
+          && isNotSpamming();
     }
 
     // Match blocks

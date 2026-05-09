@@ -20,6 +20,9 @@
         "./*"
       ]
     },
+    "types": [
+      "vite/client"
+    ],
     "allowImportingTsExtensions": true,
     "noEmit": true
   }

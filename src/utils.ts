@@ -8,8 +8,14 @@ import { Question, QuizSet } from './types';
 function normalizeUzbekText(text: string): string {
   if (!text) return '';
   
+  // Basic HTML sanitization: strip tags and script elements
+  let sanitized = text
+    .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gmi, '') // Strip script tags
+    .replace(/<[^>]*>?/gm, '') // Strip all other tags
+    .replace(/&nbsp;/g, ' '); // Replace common HTML entities
+
   // Repair common mojibake (UTF-8 bytes interpreted as ISO-8859-1/Windows-1252)
-  let repaired = text
+  let repaired = sanitized
     .replace(/â€™/g, "'") // U+2019 right single quote
     .replace(/â€˜/g, "'") // U+2018 left single quote
     .replace(/â€[“”]/g, '"') // Double quotes variants
