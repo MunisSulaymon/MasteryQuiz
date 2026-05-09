@@ -21,7 +21,8 @@ import {
   LogOut,
   Loader2,
   Zap,
-  PartyPopper
+  PartyPopper,
+  Info
 } from 'lucide-react';
 import { Question, QuizSet, AppView, QuizSession } from './types';
 import { parseQuestions, splitIntoSets, shuffleArray, parseSingleQuestion } from './utils';
@@ -32,7 +33,8 @@ import { ensureUserRecord, saveOverallProgress, saveQuestionState, saveAllQuesti
 export default function App() {
   const [view, setView] = useState<AppView>('landing');
   const [inputText, setInputText] = useState('');
-  const [sets, setSets] = useState<QuizSet[]>([]);
+  const [allQuestions, setAllQuestions] = useState<Question[]>([]);
+  const [setSize, setSetSize] = useState(20);
   const [activeSet, setActiveSet] = useState<QuizSet | null>(null);
   const [session, setSession] = useState<QuizSession | null>(null);
   const [drillSession, setDrillSession] = useState<QuizSession | null>(null);
@@ -42,6 +44,10 @@ export default function App() {
   const [isParsing, setIsParsing] = useState(false);
   const [parseProgress, setParseProgress] = useState(0);
   const [parseError, setParseError] = useState<string | null>(null);
+
+  // Derived Sets
+  const sets = useRef<QuizSet[]>([]);
+  sets.current = splitIntoSets(allQuestions, setSize);
 
   // Auth Listener
   useEffect(() => {
@@ -60,7 +66,8 @@ export default function App() {
     setIsDataLoading(true);
     const data = await loadUserData();
     if (data && data.progress) {
-      const { inputText: savedText, currentSetId, activeSetId } = data.progress;
+      const { inputText: savedText, currentSetId, activeSetId, setSize: savedSize } = data.progress;
+      if (savedSize) setSetSize(savedSize);
       setInputText(savedText);
       const parsed = parseQuestions(savedText);
       
@@ -73,18 +80,16 @@ export default function App() {
         return q;
       });
 
-      const newSets = splitIntoSets(questionsWithState);
-      setSets(newSets);
+      setAllQuestions(questionsWithState);
       
       if (currentSetId) {
         setView('selection');
       }
       if (activeSetId) {
-        const set = newSets.find(s => s.id === activeSetId);
+        const currentSets = splitIntoSets(questionsWithState, savedSize || 20);
+        const set = currentSets.find(s => s.id === activeSetId);
         if (set) {
           setActiveSet(set);
-          // Don't auto-start quiz, let them see selection or just pick set
-          // but we could auto-start if we wanted.
         }
       }
     }
@@ -94,9 +99,9 @@ export default function App() {
   // Sync Progress to Firestore
   useEffect(() => {
     if (user && inputText) {
-      saveOverallProgress(inputText, sets.length > 0 ? 1 : 0, activeSet?.id || 0);
+      saveOverallProgress(inputText, sets.current.length > 0 ? 1 : 0, activeSet?.id || 0, setSize);
     }
-  }, [user, inputText, activeSet]);
+  }, [user, inputText, activeSet, setSize]);
 
   const handleLogin = async () => {
     try {
@@ -110,7 +115,7 @@ export default function App() {
   const handleLogout = async () => {
     await signOut(auth);
     setInputText('');
-    setSets([]);
+    setAllQuestions([]);
     setActiveSet(null);
     setSession(null);
     setView('landing');
@@ -161,8 +166,7 @@ export default function App() {
         return;
       }
 
-      const newSets = splitIntoSets(questions);
-      setSets(newSets);
+      setAllQuestions(questions);
       setView('selection');
     } catch (err) {
       console.error("Parse error:", err);
@@ -220,7 +224,7 @@ export default function App() {
               onLogin={handleLogin}
               onLogout={handleLogout}
               isDataLoading={isDataLoading}
-              sets={sets}
+              sets={sets.current}
               isParsing={isParsing}
               parseProgress={parseProgress}
               parseError={parseError}
@@ -230,11 +234,13 @@ export default function App() {
         {view === 'selection' && (
           <motion.div key="selection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
             <SelectionView 
-              sets={sets} 
+              sets={sets.current} 
               onSelect={startSet} 
               onBack={() => setView('landing')}
               onLogout={handleLogout}
               user={user}
+              setSize={setSize}
+              setSetSize={setSetSize}
             />
           </motion.div>
         )}
@@ -249,15 +255,10 @@ export default function App() {
                 saveAllQuestionStates(finalSession.questions);
               }}
               onBack={() => setView('selection')}
-              onUpdateQuestion={(q, qs) => {
+              onUpdateQuestion={(q) => {
                 saveQuestionState(q);
-                // Also update sets to reflect box changes
-                setSets(prev => prev.map(s => {
-                  if (s.id === session.setId) {
-                    return { ...s, questions: qs };
-                  }
-                  return s;
-                }));
+                // Update allQuestions to reflect box changes
+                setAllQuestions(prev => prev.map(aq => aq.id === q.id ? q : aq));
               }}
             />
           </motion.div>
@@ -273,6 +274,8 @@ export default function App() {
               onBack={() => setView('summary')}
               onUpdateQuestion={(q) => {
                 saveQuestionState(q);
+                // Also update allQuestions so boxes are in sync
+                setAllQuestions(prev => prev.map(aq => aq.id === q.id ? q : aq));
               }}
               title="Weakness Drill"
             />
@@ -289,7 +292,7 @@ export default function App() {
               session={session} 
               onRetry={() => startSet(activeSet!)}
               onNextSet={() => {
-                const next = sets.find(s => s.id === session.setId + 1);
+                const next = sets.current.find(s => s.id === session.setId + 1);
                 if (next) startSet(next);
                 else setView('selection');
               }}
@@ -413,29 +416,64 @@ interface SelectionViewProps {
   onBack: () => void;
   onLogout: () => void;
   user: User | null;
+  setSize: number;
+  setSetSize: (n: number) => void;
 }
-function SelectionView({ sets, onSelect, onBack, onLogout, user }: SelectionViewProps) {
+function SelectionView({ sets, onSelect, onBack, onLogout, user, setSize, setSetSize }: SelectionViewProps) {
   const totalQuestions = sets.reduce((acc, s) => acc + s.questions.length, 0);
+  
+  const fullSets = Math.floor(totalQuestions / setSize);
+  const remainder = totalQuestions % setSize;
+  const calcText = remainder === 0 
+    ? `${totalQuestions} questions ÷ ${setSize} = ${fullSets} sets of ${setSize}`
+    : `${totalQuestions} questions ÷ ${setSize} = ${fullSets} sets of ${setSize} + 1 set of ${remainder}`;
 
   return (
     <div className="max-w-4xl mx-auto px-6 py-20">
-      <div className="flex items-center justify-between mb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
         <div>
           <h2 className="text-4xl font-black mb-2">Select a Set</h2>
-          <p className="text-gray-500">Found {totalQuestions} questions split into {sets.length} sets.</p>
+          <p className="text-gray-500 font-medium">Found {totalQuestions} questions.</p>
         </div>
         <div className="flex items-center gap-4">
           <button 
             onClick={onBack}
-            className="px-6 py-3 bg-white hover:bg-gray-50 rounded-xl font-bold border border-gray-200 transition-all text-gray-600"
+            className="px-6 py-3 bg-white hover:bg-gray-50 rounded-xl font-bold border border-gray-200 transition-all text-gray-600 shadow-sm"
           >
             {user ? 'Edit Questions' : 'Paste Again'}
           </button>
           {user && (
-            <button onClick={onLogout} className="p-3 bg-white hover:bg-red-50 text-red-500 rounded-xl border border-gray-200 transition-colors">
+            <button onClick={onLogout} className="p-3 bg-white hover:bg-red-50 text-red-500 rounded-xl border border-gray-200 transition-colors shadow-sm">
               <LogOut className="w-5 h-5" />
             </button>
           )}
+        </div>
+      </div>
+
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-gray-100 mb-12">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-6">
+          <div className="space-y-1">
+            <h3 className="text-xl font-black text-gray-800">How many questions per set?</h3>
+            <p className="text-sm text-gray-500 font-medium">{calcText}</p>
+          </div>
+          <div className="flex items-center gap-4 bg-gray-50 px-6 py-3 rounded-2xl border border-gray-100">
+            <input 
+              type="range" 
+              min="10" 
+              max="50" 
+              value={setSize} 
+              onChange={(e) => setSetSize(parseInt(e.target.value))}
+              className="w-32 md:w-48 accent-indigo-600 cursor-pointer"
+            />
+            <span className="text-2xl font-black text-indigo-600 min-w-[2.5rem] text-center">{setSize}</span>
+          </div>
+        </div>
+        
+        <div className="flex items-start gap-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+          <Info className="w-6 h-6 text-indigo-600 shrink-0 mt-0.5" />
+          <p className="text-sm text-indigo-900 font-medium">
+            <span className="font-bold">Science-backed tip:</span> Research suggests 20 questions per set for best memory retention. Smaller bites help you master concepts 100% before moving on.
+          </p>
         </div>
       </div>
 

@@ -10,7 +10,7 @@ import {
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Question, QuizSet } from '../types';
 
-export async function saveOverallProgress(inputText: string, currentSetId: number, activeSetId: number) {
+export async function saveOverallProgress(inputText: string, currentSetId: number, activeSetId: number, setSize: number) {
   if (!auth.currentUser) return;
   const path = `users/${auth.currentUser.uid}/config/progress`;
   try {
@@ -18,6 +18,7 @@ export async function saveOverallProgress(inputText: string, currentSetId: numbe
       inputText,
       currentSetId,
       activeSetId,
+      setSize,
       lastUpdated: serverTimestamp(),
     });
   } catch (error) {
