@@ -58,12 +58,18 @@ export function parseSingleQuestion(block: string, id: string): Question | null 
   
   for (let j = 0; j < optionsRaw.length; j++) {
     let opt = optionsRaw[j];
-    if (opt.startsWith('#')) {
-      const clean = opt.substring(1).trim();
-      correctAnswer = clean;
+    // Some formats use [X] or {X} or just starting with # to mark the correct answer
+    const isExplicitCorrect = opt.startsWith('#') || opt.startsWith('*') || (opt.length > 3 && opt.substring(0, 4).includes('[x]'));
+    
+    let clean = opt;
+    if (isExplicitCorrect) {
+       clean = opt.replace(/^[#*]|\[x\]/i, '').trim();
+       correctAnswer = clean;
+    }
+    
+    // De-duplicate options
+    if (clean && !options.includes(clean)) {
       options.push(clean);
-    } else {
-      options.push(opt);
     }
   }
 
@@ -82,13 +88,12 @@ export function parseSingleQuestion(block: string, id: string): Question | null 
 export function parseQuestions(input: string): Question[] {
   if (!input || !input.trim()) return [];
 
-  // Split by 2 or more plus signs, or by triple newlines if no plus signs are found
+  // Split by 2 or more plus signs, or by double newlines if no plus signs are found
   let rawBlocks = input.split(/\s*\+{2,}\s*/).map(block => block.trim()).filter(Boolean);
   
-  if (rawBlocks.length <= 1 && input.includes('====')) {
-    // If we only got one block but it contains question separators, 
-    // try splitting by triple line breaks as a fallback
-    rawBlocks = input.split(/\n\s*\n\s*\n/).map(block => block.trim()).filter(Boolean);
+  if (rawBlocks.length <= 1) {
+    // If we only got one block, try splitting by double line breaks as a common fallback
+    rawBlocks = input.split(/\n\s*\n/).map(block => block.trim()).filter(Boolean);
   }
 
   const now = Date.now();

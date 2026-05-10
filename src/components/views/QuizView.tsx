@@ -237,8 +237,15 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
 
            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
               {shuffledOptions.map((opt, idx) => {
-                const letters = ['A', 'B', 'C', 'D'];
+                const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
                 const isCorrect = opt === activeQuestion.correctAnswer;
+                
+                // Try to extract label from text (e.g., "A) Option" -> "A")
+                const match = opt.match(/^([A-H])\s*[).]/i);
+                const extractedLabel = match ? match[1].toUpperCase() : null;
+                
+                // Clean up prefixes like A), B), 1., 2. if they match the current index or are common
+                const displayOpt = opt.replace(/^[A-H][).]\s*/i, '').replace(/^\d+[).]\s*/, '').trim();
                 
                 let btnClass = "bg-white/10 hover:bg-white/20 border-transparent text-white";
                 if (feedback) {
@@ -254,9 +261,9 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
                     className={`group relative p-3 md:p-5 text-left rounded-xl md:rounded-2xl border-2 transition-all flex items-center gap-3 md:gap-5 ${btnClass} active:scale-[0.98]`}
                   >
                     <span className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-white/10 rounded-lg md:rounded-xl font-black text-xs md:text-lg group-hover:bg-white/20 transition-colors">
-                      {letters[idx]}
+                      {extractedLabel || letters[idx] || (idx + 1)}
                     </span>
-                    <span className="text-sm md:text-xl font-bold leading-tight break-words flex-1 pr-6">{opt}</span>
+                    <span className="text-sm md:text-xl font-bold leading-tight break-words flex-1 pr-6">{displayOpt}</span>
                     
                     {feedback && isCorrect && <CheckCircle2 className="flex-shrink-0 w-5 h-5 md:w-8 md:h-8 text-emerald-500" />}
                     {feedback === 'wrong' && !isCorrect && <XCircle className="flex-shrink-0 w-5 h-5 md:w-8 md:h-8 text-red-500 opacity-30" />}
