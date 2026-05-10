@@ -2,15 +2,15 @@ import { initializeApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 
-// Configuration can come from env vars or a local config file
+// Configuration auto-generated from provisioning result
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID,
+  apiKey: "AIzaSyD0fG3vTDsb5B7bOlbghbEohEPgRFgNLN8",
+  authDomain: "gen-lang-client-0412823032.firebaseapp.com",
+  projectId: "gen-lang-client-0412823032",
+  storageBucket: "gen-lang-client-0412823032.firebasestorage.app",
+  messagingSenderId: "1080096362685",
+  appId: "1:1080096362685:web:b2bb290da4d05873ffe7d4",
+  firestoreDatabaseId: "ai-studio-9c439d14-8225-4692-8953-791e8d8b4b32",
 };
 
 const isConfigValid = !!firebaseConfig.apiKey && 
@@ -19,7 +19,7 @@ const isConfigValid = !!firebaseConfig.apiKey &&
                        firebaseConfig.apiKey.trim() !== '';
 
 if (!isConfigValid) {
-  console.warn('Firebase configuration is missing or invalid. Testing/Guest mode enabled.');
+  console.warn('Firebase configuration is missing or invalid. Check your setup.');
 }
 
 export const app: FirebaseApp | null = isConfigValid ? initializeApp(firebaseConfig) : null;

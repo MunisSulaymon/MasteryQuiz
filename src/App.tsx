@@ -144,6 +144,8 @@ export default function App() {
 
   const handleDeletePack = async () => {
     if (!deletingPack) return;
+    setIsDataLoading(true);
+    setSyncStatus('syncing');
     try {
       await deletePack(deletingPack.id);
       setPacks(prev => prev.filter(p => p.id !== deletingPack.id));
@@ -151,10 +153,16 @@ export default function App() {
          setActivePack(null);
          setView('packs');
       }
+      setSyncStatus(user ? 'synced' : 'offline');
     } catch (err) {
       console.error("Delete pack failed:", err);
+      setSyncStatus('offline');
+      // If it fails on server, still update local if we can or tell user
+      alert("Note: Cloud deletion failed, but pack removed from view. Sync might resolve later.");
+      setPacks(prev => prev.filter(p => p.id !== deletingPack.id));
     } finally {
       setDeletingPack(null);
+      setIsDataLoading(false);
     }
   };
 
@@ -275,9 +283,10 @@ export default function App() {
 
     try {
       const questions = parseQuestions(inputText);
+      console.log("Parsed questions count:", questions.length);
       
       if (questions.length === 0) {
-        setParseError("No valid questions found! Make sure to use ==== and ++++ separators.");
+        setParseError(`Found no valid questions. Make sure questions start for the first line and use ==== for options and ++++ between questions.`);
         setIsParsing(false);
         return;
       }

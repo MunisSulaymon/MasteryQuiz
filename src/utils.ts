@@ -81,9 +81,16 @@ export function parseSingleQuestion(block: string, id: string): Question | null 
 export function parseQuestions(input: string): Question[] {
   if (!input || !input.trim()) return [];
 
-  // Split by 4 or more plus signs, more robust for mobile/copy-paste
-  const questionsSeparator = /\s*\+{4,}\s*/;
-  const rawBlocks = input.split(questionsSeparator).map(block => block.trim()).filter(Boolean);
+  // Split by 4 or more plus signs, or by double newlines if no plus signs are found
+  // This helps when copy-pasting from some mobile sources
+  let rawBlocks = input.split(/\s*\+{4,}\s*/).map(block => block.trim()).filter(Boolean);
+  
+  if (rawBlocks.length <= 1 && input.includes('====')) {
+    // If we only got one block but it contains question separators, 
+    // try splitting by double line breaks as a fallback
+    rawBlocks = input.split(/\n\s*\n/).map(block => block.trim()).filter(Boolean);
+  }
+
   const now = Date.now();
   const questions: Question[] = [];
   
