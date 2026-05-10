@@ -11,6 +11,8 @@ export function normalizeUzbekText(text: string): string {
   // Repair common mojibake and encoding issues specifically for Uzbek characters
   let repaired = text
     .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove invisible characters
+    .replace(/\r\n/g, '\n') // Standardize line endings
+    .replace(/\r/g, '\n')
     .replace(/\u00D0\u00BE\u00E2\u20AC\u2018/g, "o'") 
     .replace(/\u00D0\u00BE\u00E2\u20AC\u2122/g, "o'") 
     .replace(/\u00D0\u00B3\u00E2\u20AC\u2018/g, "g'") 
@@ -44,9 +46,8 @@ export function normalizeUzbekText(text: string): string {
 }
 
 export function parseSingleQuestion(block: string, id: string): Question | null {
-  // Use regex to find separator regardless of whitespace around it
-  const separatorRegex = /\s*={4,}\s*/;
-  const lines = block.split(separatorRegex).map(l => normalizeUzbekText(l)).filter(Boolean);
+  const separatorRegex = /\s*={2,}\s*/;
+  const lines = block.split(separatorRegex).map(l => normalizeUzbekText(l.trim())).filter(l => l.length > 0);
   if (lines.length < 2) return null;
 
   const stem = lines[0];
@@ -81,14 +82,13 @@ export function parseSingleQuestion(block: string, id: string): Question | null 
 export function parseQuestions(input: string): Question[] {
   if (!input || !input.trim()) return [];
 
-  // Split by 4 or more plus signs, or by double newlines if no plus signs are found
-  // This helps when copy-pasting from some mobile sources
-  let rawBlocks = input.split(/\s*\+{4,}\s*/).map(block => block.trim()).filter(Boolean);
+  // Split by 2 or more plus signs, or by triple newlines if no plus signs are found
+  let rawBlocks = input.split(/\s*\+{2,}\s*/).map(block => block.trim()).filter(Boolean);
   
   if (rawBlocks.length <= 1 && input.includes('====')) {
     // If we only got one block but it contains question separators, 
-    // try splitting by double line breaks as a fallback
-    rawBlocks = input.split(/\n\s*\n/).map(block => block.trim()).filter(Boolean);
+    // try splitting by triple line breaks as a fallback
+    rawBlocks = input.split(/\n\s*\n\s*\n/).map(block => block.trim()).filter(Boolean);
   }
 
   const now = Date.now();

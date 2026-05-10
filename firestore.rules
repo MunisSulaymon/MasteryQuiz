@@ -69,10 +69,11 @@ service cloud.firestore {
 
         match /data/{docId} {
           allow get: if isOwner(userId);
-          allow write: if isOwner(userId) && (
+          allow create, update: if isOwner(userId) && (
             (docId == 'questions' && isValidQuestionsData(incoming())) ||
             (docId == 'sets' && isValidSetsData(incoming()))
           );
+          allow delete: if isOwner(userId);
         }
 
         // Legacy/Migration paths

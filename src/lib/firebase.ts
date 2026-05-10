@@ -20,6 +20,8 @@ const isConfigValid = !!firebaseConfig.apiKey &&
 
 if (!isConfigValid) {
   console.warn('Firebase configuration is missing or invalid. Check your setup.');
+} else {
+  console.log('Firebase initialized with project:', firebaseConfig.projectId);
 }
 
 export const app: FirebaseApp | null = isConfigValid ? initializeApp(firebaseConfig) : null;

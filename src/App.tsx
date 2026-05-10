@@ -252,11 +252,12 @@ export default function App() {
       await signInWithPopup(auth, provider);
     } catch (error: any) {
       console.error("Login error:", error);
-      let message = "Failed to sign in with Google.";
+      let message = `Failed to sign in: ${error.message || 'Unknown error'}`;
       if (error.code === 'auth/popup-blocked') {
         message = "Login popup was blocked by your browser. Please allow popups for this site.";
       }
       setAuthError(message);
+      alert(message); // Force visibility
       setIsAuthLoading(false);
     }
   }, []);
