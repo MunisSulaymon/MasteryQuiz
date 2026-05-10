@@ -36,38 +36,33 @@ service cloud.firestore {
 
     function isValidPack(data) {
       return data.name is string && data.name.size() <= 100 &&
-             (data.id == null || data.id is string) &&
-             (data.color == null || (data.color is string && data.color.size() <= 20)) &&
-             (data.deleteAt == null || data.deleteAt is number || data.deleteAt is timestamp) &&
-             (data.inputText == null || (data.inputText is string && data.inputText.size() <= 100000)) &&
-             (data.setSize == null || (data.setSize is number && data.setSize >= 1 && data.setSize <= 100)) &&
-             (data.questionCount == null || (data.questionCount is number)) &&
-             (data.createdAt == null || data.createdAt == request.time || data.createdAt is timestamp || data.createdAt is number) &&
-             (data.lastStudied == null || data.lastStudied == request.time || data.lastStudied is timestamp || data.lastStudied is number) &&
-             (data.lastUpdated == null || data.lastUpdated == request.time || data.lastUpdated is timestamp || data.lastUpdated is number);
+             (data.get('id', null) == null || data.get('id', '') is string) &&
+             (data.get('color', 'indigo') is string) &&
+             (data.get('deleteAt', null) == null || data.get('deleteAt', 0) is number || data.get('deleteAt', 0) is timestamp) &&
+             (data.get('questionCount', 0) is number) &&
+             (data.get('createdAt', null) == null || data.get('createdAt', 0) == request.time || data.get('createdAt', 0) is timestamp || data.get('createdAt', 0) is number) &&
+             (data.get('lastStudied', null) == null || data.get('lastStudied', 0) == request.time || data.get('lastStudied', 0) is timestamp || data.get('lastStudied', 0) is number);
     }
 
     function isValidQuestionsData(data) {
-      return data.states is list && data.states.size() <= 2000 &&
-             (data.lastUpdated == request.time || data.lastUpdated is timestamp);
+      return data.get('states', []) is list &&
+             (data.get('lastUpdated', 0) == request.time || data.get('lastUpdated', 0) is timestamp);
     }
 
     function isValidSetsData(data) {
-      return data.mastery is map && data.mastery.size() <= 200 &&
-             (data.lastUpdated == request.time || data.lastUpdated is timestamp);
+      return data.get('mastery', {}) is map &&
+             (data.get('lastUpdated', 0) == request.time || data.get('lastUpdated', 0) is timestamp);
     }
 
     // Collection Matches
     match /users/{userId} {
       allow get: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUser(incoming());
-      allow update: if isOwner(userId) && isValidUser(incoming()) && 
-                    incoming().diff(existing()).affectedKeys().hasOnly(['email', 'lastUpdated']);
+      allow update: if isOwner(userId) && isValidUser(incoming());
 
       match /packs/{packId} {
         allow list, get: if isOwner(userId);
-        allow create: if isOwner(userId) && isValidId(packId) && isValidPack(incoming());
-        allow update: if isOwner(userId) && isValidPack(incoming());
+        allow create, update: if isOwner(userId) && isValidPack(incoming());
         allow delete: if isOwner(userId);
 
         match /data/{docId} {
@@ -78,23 +73,14 @@ service cloud.firestore {
           );
           allow delete: if isOwner(userId);
         }
-
-        // Legacy/Migration paths
-        match /questions/{qId} {
-          allow read, write: if isOwner(userId);
-        }
-        match /sets/{sId} {
-          allow read, write: if isOwner(userId);
+        
+        // Legacy support
+        match /{allPaths=**} {
+           allow read, write: if isOwner(userId);
         }
       }
 
       match /config/progress {
-        allow read, write: if isOwner(userId);
-      }
-      match /questions/{qId} {
-        allow read, write: if isOwner(userId);
-      }
-      match /sets/{sId} {
         allow read, write: if isOwner(userId);
       }
     }
