@@ -22,13 +22,18 @@ interface SummaryViewProps {
   onLogout: () => void;
   onDrill: (questions: Question[]) => void;
   onSave: (questions: Question[]) => Promise<void>;
+  previousBest?: number;
 }
 
-export default function SummaryView({ session, onRetry, onNextSet, onHome, user, onLogout, onDrill, onSave }: SummaryViewProps) {
+export default function SummaryView({ session, onRetry, onNextSet, onHome, user, onLogout, onDrill, onSave, previousBest: propPreviousBest }: SummaryViewProps) {
+  const [previousBest] = useState(propPreviousBest);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const duration = Math.floor((session.endTime! - session.startTime) / 1000);
   const minutes = Math.floor(duration / 60);
   const seconds = duration % 60;
+
+  const isQuickTest = session.mode === 'quick-test';
+  const improvement = previousBest ? previousBest - session.rounds : 0;
   
   const troublesome = useRef(session.questions
     .filter(q => q.wrongCount >= 3)
@@ -77,8 +82,14 @@ export default function SummaryView({ session, onRetry, onNextSet, onHome, user,
       <div className="inline-flex bg-emerald-100 p-6 rounded-full mb-8">
         <Trophy className="w-16 h-16 text-emerald-600" />
       </div>
-      <h2 className="text-5xl font-black mb-4">Set Complete!</h2>
-      <p className="text-xl text-gray-500 mb-12">You've reached 100% mastery on this set.</p>
+      <h2 className="text-5xl font-black mb-4">
+        {isQuickTest ? 'Test Complete!' : 'Set Mastered!'}
+      </h2>
+      <p className="text-xl text-gray-500 mb-12">
+        {isQuickTest 
+          ? "You've completed a quick memory check." 
+          : "You've reached 100% mastery on this set."}
+      </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-16 px-4">
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 text-left">
@@ -88,8 +99,25 @@ export default function SummaryView({ session, onRetry, onNextSet, onHome, user,
         </div>
         <div className="bg-white p-8 rounded-3xl shadow-xl border border-gray-100 text-left">
           <RotateCcw className="w-8 h-8 text-indigo-600 mb-4" />
-          <p className="text-sm font-black text-gray-400 uppercase tracking-widest mb-1">Total Rounds</p>
-          <p className="text-3xl font-black">{session.rounds} Rounds</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-sm font-black text-gray-400 uppercase tracking-widest mb-1">
+                {isQuickTest ? 'Questions' : 'Total Rounds'}
+              </p>
+              <p className="text-3xl font-black">
+                {isQuickTest ? session.questions.length : session.rounds} {isQuickTest ? '' : 'Rounds'}
+              </p>
+            </div>
+            {previousBest && !isQuickTest && (
+              <div className="text-right">
+                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Comparison</p>
+                <div className={`text-sm font-bold flex items-center gap-1 ${improvement > 0 ? 'text-emerald-500' : improvement < 0 ? 'text-amber-500' : 'text-gray-400'}`}>
+                  {improvement > 0 ? `-${improvement} rounds 🎉` : improvement < 0 ? `+${Math.abs(improvement)} rounds` : 'Same as last time'}
+                </div>
+                <p className="text-[9px] text-gray-400 mt-1 font-medium">Last time: {previousBest} rds</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -17,6 +17,10 @@ export type AppView = 'landing' | 'selection' | 'quiz' | 'summary' | 'drill' | '
 export interface QuizSet {
   id: number;
   questions: Question[];
+  mastery?: {
+    bestRounds: number;
+    lastMastered: number;
+  };
 }
 
 export interface QuizSession {
@@ -25,4 +29,5 @@ export interface QuizSession {
   startTime: number;
   rounds: number;
   endTime?: number;
+  mode: 'leitner' | 'quick-test';
 }

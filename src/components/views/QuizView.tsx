@@ -61,9 +61,12 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
     setQuestions(prev => {
       const updated = prev.map(q => {
         if (q.id === activeQuestion.id) {
+          // In quick-test mode, we don't change the box level, just track errors
+          const newBox = session.mode === 'quick-test' ? q.box : (isCorrect ? (Math.min(3, q.box + 1) as 1 | 2 | 3) : (1 as 1 | 2 | 3));
+          
           updatedQ = {
             ...q,
-            box: isCorrect ? (Math.min(3, q.box + 1) as 1 | 2 | 3) : (1 as 1 | 2 | 3),
+            box: newBox,
             wrongCount: isCorrect ? q.wrongCount : q.wrongCount + 1,
           } as Question;
           return updatedQ;
@@ -80,6 +83,10 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
     setTimeout(() => {
       setCurrentQueue(prev => {
         if (prev.length === 0) {
+          if (session.mode === 'quick-test') {
+            onComplete({ ...session, questions, rounds: 1, endTime: Date.now() });
+            return [];
+          }
           setRounds(r => r + 1);
           return [];
         }
@@ -94,9 +101,25 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
         return rest;
       });
     }, 2000);
-  }, [feedback, activeQuestion, onUpdateQuestion]);
+  }, [feedback, activeQuestion, onUpdateQuestion, session, questions, onComplete]);
 
   const initQueue = useCallback(() => {
+    if (session.mode === 'quick-test') {
+      const queue = shuffleArray<Question>([...questions]);
+      if (queue.length === 0) {
+        onComplete({ ...session, questions, rounds: 1, endTime: Date.now() });
+        return;
+      }
+      const next = queue[0];
+      const rest = queue.slice(1);
+      setActiveQuestion(next);
+      setCurrentQueue(rest);
+      setShuffledOptions(shuffleArray(next.options));
+      setFeedback(null);
+      setTimer(20);
+      return;
+    }
+
     const box1 = questions.filter(q => q.box === 1);
     const box2 = questions.filter(q => q.box === 2);
     

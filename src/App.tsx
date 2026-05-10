@@ -12,7 +12,7 @@ import { Question, QuizSet, AppView, QuizSession } from './types';
 import { parseQuestions, splitIntoSets, parseSingleQuestion } from './utils';
 import { auth } from './lib/firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { ensureUserRecord, saveOverallProgress, saveQuestionState, saveAllQuestionStates, loadUserData } from './services/quizService';
+import { ensureUserRecord, saveOverallProgress, saveQuestionState, saveAllQuestionStates, loadUserData, saveSetMastery } from './services/quizService';
 
 // Import views directly to avoid lazy loading issues
 import LandingView from './components/views/LandingView';
@@ -39,8 +39,16 @@ export default function App() {
   const [parseProgress, setParseProgress] = useState(0);
   const [parseError, setParseError] = useState<string | null>(null);
 
+  const [setsMastery, setSetsMastery] = useState<Map<number, { bestRounds: number, lastMastered: number }>>(new Map());
+
   // Derived Sets (Memoized)
-  const sets = useMemo(() => splitIntoSets(allQuestions, setSize), [allQuestions, setSize]);
+  const sets = useMemo(() => {
+    const rawSets = splitIntoSets(allQuestions, setSize);
+    return rawSets.map(s => ({
+      ...s,
+      mastery: setsMastery.get(s.id)
+    }));
+  }, [allQuestions, setSize, setsMastery]);
 
   // Load Stored Data from Firestore
   const loadStoredData = useCallback(async () => {
@@ -63,12 +71,18 @@ export default function App() {
         });
 
         setAllQuestions(questionsWithState);
+        if (data.setsMastery) {
+          setSetsMastery(data.setsMastery);
+        }
         
         if (currentSetId) setView('selection');
         if (activeSetId) {
           const currentSets = splitIntoSets(questionsWithState, savedSize || 20);
           const set = currentSets.find(s => s.id === activeSetId);
-          if (set) setActiveSet(set);
+          if (set) {
+            const m = data.setsMastery?.get(set.id);
+            setActiveSet({ ...set, mastery: m });
+          }
         }
       }
     } catch (err) {
@@ -101,7 +115,6 @@ export default function App() {
     }
   }, [user, loadStoredData]);
 
-  // Manual save progress function
   const handleSaveProgress = useCallback(async (finalQuestions?: Question[]) => {
     if (!user) return;
     try {
@@ -111,12 +124,27 @@ export default function App() {
       // Save question states if provided
       if (finalQuestions && finalQuestions.length > 0) {
         await saveAllQuestionStates(finalQuestions);
+        
+        // Check if set is now mastered
+        const allMastered = finalQuestions.every(q => q.box === 3);
+        if (allMastered && activeSet && session && session.mode === 'leitner') {
+          await saveSetMastery(activeSet.id, session.rounds);
+          // Refresh mastery locally
+          setSetsMastery(prev => {
+            const next = new Map(prev);
+            const current = prev.get(activeSet.id!);
+            next.set(activeSet.id!, {
+              bestRounds: current ? Math.min(current.bestRounds, session.rounds) : session.rounds,
+              lastMastered: Date.now()
+            });
+            return next;
+          });
+        }
       }
     } catch (err) {
       console.error("Delayed save error:", err);
-      // We don't throw here to avoid crashing the UI
     }
-  }, [user, inputText, activeSet, setSize, sets.length]);
+  }, [user, inputText, activeSet, setSize, sets.length, session]);
 
   const handleLogin = useCallback(async () => {
     setAuthError(null);
@@ -196,16 +224,30 @@ export default function App() {
     }
   }, [inputText]);
 
-  const startSet = useCallback((set: QuizSet) => {
+  const startSet = useCallback((set: QuizSet, mode: 'leitner' | 'quick-test' = 'leitner') => {
     setActiveSet(set);
     setSession({
       setId: set.id,
       questions: set.questions,
       startTime: Date.now(),
-      rounds: 1
+      rounds: 1,
+      mode
     });
     setView('quiz');
   }, []);
+
+  const resetSetAndStart = useCallback((set: QuizSet) => {
+    const updatedQuestions = set.questions.map(q => ({
+      ...q,
+      box: 1 as 1 | 2 | 3,
+    }));
+    
+    // Update global state
+    const qIds = new Set(updatedQuestions.map(q => q.id));
+    setAllQuestions(prev => prev.map(q => qIds.has(q.id) ? { ...q, box: 1 as 1 | 2 | 3 } : q));
+    
+    startSet({ ...set, questions: updatedQuestions }, 'leitner');
+  }, [startSet]);
 
   const startDrill = useCallback((questions: Question[]) => {
     const initializedDrill = questions.map(q => ({
@@ -216,7 +258,8 @@ export default function App() {
       setId: activeSet?.id || 0,
       questions: initializedDrill,
       startTime: Date.now(),
-      rounds: 1
+      rounds: 1,
+      mode: 'leitner'
     });
     setView('drill');
   }, [activeSet?.id]);
@@ -271,7 +314,9 @@ export default function App() {
             <motion.div key="selection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <SelectionView 
                 sets={sets} 
-                onSelect={startSet} 
+                onSelect={(s) => startSet(s, 'leitner')}
+                onQuickTest={(s) => startSet(s, 'quick-test')}
+                onResetSet={resetSetAndStart}
                 onBack={() => setView('landing')}
                 onLogout={handleLogout}
                 user={user}
@@ -300,10 +345,14 @@ export default function App() {
             <motion.div key="summary" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <SummaryView 
                 session={session} 
-                onRetry={() => startSet(activeSet!)}
+                onRetry={() => {
+                  const isMastered = activeSet!.questions.every(q => q.box === 3);
+                  if (isMastered) resetSetAndStart(activeSet!);
+                  else startSet(activeSet!, 'leitner');
+                }}
                 onNextSet={() => {
                   const next = sets.find(s => s.id === session.setId + 1);
-                  if (next) startSet(next);
+                  if (next) startSet(next, 'leitner');
                   else setView('selection');
                 }}
                 onHome={() => setView('selection')}
@@ -311,6 +360,7 @@ export default function App() {
                 user={user}
                 onDrill={startDrill}
                 onSave={handleSaveProgress}
+                previousBest={setsMastery.get(session.setId)?.bestRounds}
               />
             </motion.div>
           )}
