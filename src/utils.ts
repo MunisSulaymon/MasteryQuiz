@@ -9,8 +9,8 @@ export function normalizeUzbekText(text: string): string {
   if (!text) return '';
   
   // Repair common mojibake and encoding issues specifically for Uzbek characters
-  // This handles the "Ð¾â€˜" type issues specifically for Uzbek characters (Cyrillic o + smart quote)
   let repaired = text
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove invisible characters
     .replace(/\u00D0\u00BE\u00E2\u20AC\u2018/g, "o'") 
     .replace(/\u00D0\u00BE\u00E2\u20AC\u2122/g, "o'") 
     .replace(/\u00D0\u00B3\u00E2\u20AC\u2018/g, "g'") 
@@ -24,21 +24,19 @@ export function normalizeUzbekText(text: string): string {
     .replace(/â€™/g, "'")
     .replace(/â€˜/g, "'")
     .replace(/â€[“”]/g, '"')
-    .replace(/ʻ/g, "'") // Handle specific Uzbek/Cyrillic apostrophe
+    .replace(/ʻ/g, "'") 
     .replace(/ʼ/g, "'")
     .replace(/‘/g, "'")
     .replace(/’/g, "'")
     .replace(/`/g, "'");
 
-  // Standardize Uzbek specific Latin characters that often get mixed up
-  // o' and g' standardization
+  // Standardize Uzbek specific Latin characters
   repaired = repaired
     .replace(/o[''']/g, "o'")
     .replace(/O[''']/g, "O'")
     .replace(/g[''']/g, "g'")
     .replace(/G[''']/g, "G'");
 
-  // Standardize all other variants of quotes
   return repaired
     .replace(/[\u2018\u2019\u201B\u02BB\u02BC\u0027\u0060\u00B4]/g, "'") 
     .replace(/[\u201C\u201D\u201F\u00AB\u00BB]/g, '"')
@@ -46,7 +44,9 @@ export function normalizeUzbekText(text: string): string {
 }
 
 export function parseSingleQuestion(block: string, id: string): Question | null {
-  const lines = block.split(/\s*====\s*/).map(l => normalizeUzbekText(l)).filter(Boolean);
+  // Use regex to find separator regardless of whitespace around it
+  const separatorRegex = /\s*={4,}\s*/;
+  const lines = block.split(separatorRegex).map(l => normalizeUzbekText(l)).filter(Boolean);
   if (lines.length < 2) return null;
 
   const stem = lines[0];
@@ -81,8 +81,9 @@ export function parseSingleQuestion(block: string, id: string): Question | null 
 export function parseQuestions(input: string): Question[] {
   if (!input || !input.trim()) return [];
 
-  const normalizedInput = normalizeUzbekText(input);
-  const rawBlocks = normalizedInput.split(/\s*\+\+\+\+\s*/).map(block => block.trim()).filter(Boolean);
+  // Split by 4 or more plus signs, more robust for mobile/copy-paste
+  const questionsSeparator = /\s*\+{4,}\s*/;
+  const rawBlocks = input.split(questionsSeparator).map(block => block.trim()).filter(Boolean);
   const now = Date.now();
   const questions: Question[] = [];
   

@@ -1,7 +1,17 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import firebaseConfig from '../../firebase-applet-config.json';
+import { initializeApp, FirebaseApp } from 'firebase/app';
+import { getAuth, Auth } from 'firebase/auth';
+import { getFirestore, Firestore } from 'firebase/firestore';
+
+// Configuration can come from env vars or a local config file
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID,
+};
 
 const isConfigValid = !!firebaseConfig.apiKey && 
                        firebaseConfig.apiKey !== 'undefined' && 
@@ -9,12 +19,12 @@ const isConfigValid = !!firebaseConfig.apiKey &&
                        firebaseConfig.apiKey.trim() !== '';
 
 if (!isConfigValid) {
-  console.warn('Firebase configuration is missing or invalid. The app will run in Guest Mode (Offline).');
+  console.warn('Firebase configuration is missing or invalid. Testing/Guest mode enabled.');
 }
 
-export const app = isConfigValid ? initializeApp(firebaseConfig) : null;
-export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined) : null;
+export const app: FirebaseApp | null = isConfigValid ? initializeApp(firebaseConfig) : null;
+export const auth: Auth | null = app ? getAuth(app) : null;
+export const db: Firestore | null = app ? getFirestore(app, firebaseConfig.firestoreDatabaseId || undefined) : null;
 
 export enum OperationType {
   CREATE = 'create',

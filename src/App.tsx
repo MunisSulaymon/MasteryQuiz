@@ -144,16 +144,18 @@ export default function App() {
 
   const handleDeletePack = async () => {
     if (!deletingPack) return;
-    await deletePack(deletingPack.id);
-    setPacks(prev => prev.filter(p => p.id !== deletingPack.id));
-    setDeletingPack(null);
-    if (activePack?.id === deletingPack.id) {
-       setActivePack(null);
-       setView('packs');
+    try {
+      await deletePack(deletingPack.id);
+      setPacks(prev => prev.filter(p => p.id !== deletingPack.id));
+      if (activePack?.id === deletingPack.id) {
+         setActivePack(null);
+         setView('packs');
+      }
+    } catch (err) {
+      console.error("Delete pack failed:", err);
+    } finally {
+      setDeletingPack(null);
     }
-    // Refresh
-    const data = await loadUserData();
-    if (data) setPacks(data.packs);
   };
 
   const handleExtendPack = async (pack: QuizPack) => {
@@ -272,23 +274,10 @@ export default function App() {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
-      const rawBlocks = inputText.split('++++');
-      const questions: Question[] = [];
-      const now = Date.now();
-
-      for (let i = 0; i < rawBlocks.length; i++) {
-        const block = rawBlocks[i].trim();
-        if (!block) continue;
-        const q = parseSingleQuestion(block, `q-${i}-${now}`);
-        if (q) questions.push(q);
-        if (i % 20 === 0) {
-           setParseProgress(Math.floor((i / rawBlocks.length) * 100));
-           await new Promise(resolve => setTimeout(resolve, 0));
-        }
-      }
-
+      const questions = parseQuestions(inputText);
+      
       if (questions.length === 0) {
-        setParseError("No valid questions found!");
+        setParseError("No valid questions found! Make sure to use ==== and ++++ separators.");
         setIsParsing(false);
         return;
       }
@@ -306,7 +295,7 @@ export default function App() {
       setIsParsing(false);
       setParseProgress(0);
     }
-  }, [inputText, activePack, setSize]);
+  }, [inputText, activePack, setSize, setsMastery]);
 
   const startSet = useCallback((set: QuizSet, mode: 'leitner' | 'quick-test' = 'leitner') => {
     setActiveSet(set);
