@@ -36,7 +36,9 @@ service cloud.firestore {
 
     function isValidPack(data) {
       return data.name is string && data.name.size() <= 100 &&
+             (data.id == null || data.id is string) &&
              (data.color == null || (data.color is string && data.color.size() <= 20)) &&
+             (data.deleteAt == null || data.deleteAt is number || data.deleteAt is timestamp) &&
              (data.inputText == null || (data.inputText is string && data.inputText.size() <= 100000)) &&
              (data.setSize == null || (data.setSize is number && data.setSize >= 1 && data.setSize <= 100)) &&
              (data.questionCount == null || (data.questionCount is number)) &&

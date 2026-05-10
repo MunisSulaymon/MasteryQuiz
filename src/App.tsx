@@ -129,17 +129,32 @@ export default function App() {
   }, []);
 
   const handleCreateOrUpdatePack = async (packData: Partial<QuizPack>) => {
-    if (editingPack) {
-      await updatePack(editingPack.id, packData);
-      setPacks(prev => prev.map(p => p.id === editingPack.id ? { ...p, ...packData } : p));
-    } else {
-      const newId = await createPack(packData);
-      if (newId) {
-        setPacks(prev => [{ ...packData, id: newId, createdAt: Date.now(), lastStudied: Date.now(), questionCount: 0 } as QuizPack, ...prev]);
+    setSyncStatus('syncing');
+    try {
+      if (editingPack) {
+        await updatePack(editingPack.id, packData);
+        setPacks(prev => prev.map(p => p.id === editingPack.id ? { ...p, ...packData } : p));
+      } else {
+        const newId = await createPack(packData);
+        if (newId) {
+          const newPack: QuizPack = { 
+            ...packData, 
+            id: newId, 
+            createdAt: Date.now(), 
+            lastStudied: Date.now(), 
+            questionCount: 0 
+          } as QuizPack;
+          setPacks(prev => [newPack, ...prev]);
+        }
       }
+      setSyncStatus(user ? 'synced' : 'offline');
+      setShowPackModal(false);
+      setEditingPack(null);
+    } catch (err) {
+      console.error("Save pack failed:", err);
+      setSyncStatus('offline');
+      alert("Failed to save pack. Please check your connection.");
     }
-    setShowPackModal(false);
-    setEditingPack(null);
   };
 
   const handleDeletePack = async () => {
