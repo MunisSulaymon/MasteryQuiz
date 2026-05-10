@@ -37,7 +37,7 @@ export function loadFromLocal(userId: string, suffix: string) {
 
 export async function createPack(pack: Partial<QuizPack>) {
   const packId = pack.id || Math.random().toString(36).substring(2, 11);
-  const userId = auth.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid || 'guest';
   const newPack = {
     ...pack,
     id: packId,
@@ -46,7 +46,7 @@ export async function createPack(pack: Partial<QuizPack>) {
     questionCount: pack.questionCount || 0,
   };
 
-  if (auth.currentUser) {
+  if (db && auth?.currentUser) {
     const path = `users/${userId}/packs/${packId}`;
     try {
       await setDoc(doc(db, path), {
@@ -67,9 +67,9 @@ export async function createPack(pack: Partial<QuizPack>) {
 }
 
 export async function updatePack(packId: string, updates: Partial<QuizPack>) {
-  const userId = auth.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid || 'guest';
   
-  if (auth.currentUser) {
+  if (db && auth?.currentUser) {
     const path = `users/${userId}/packs/${packId}`;
     try {
       await setDoc(doc(db, path), {
@@ -88,9 +88,9 @@ export async function updatePack(packId: string, updates: Partial<QuizPack>) {
 }
 
 export async function deletePack(packId: string) {
-  const userId = auth.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid || 'guest';
   
-  if (auth.currentUser) {
+  if (db && auth?.currentUser) {
     const path = `users/${userId}/packs/${packId}`;
     try {
       const batch = writeBatch(db);
@@ -110,9 +110,9 @@ export async function deletePack(packId: string) {
 }
 
 export async function syncSessionData(packId: string, questions: Question[], setsMastery: Map<number, any>, inputText: string, setSize: number) {
-  const userId = auth.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid || 'guest';
   
-  if (auth.currentUser) {
+  if (db && auth?.currentUser) {
     const packPath = `users/${userId}/packs/${packId}`;
     try {
       const batch = writeBatch(db);
@@ -158,6 +158,7 @@ export async function syncSessionData(packId: string, questions: Question[], set
 }
 
 async function migrateUserData(userId: string) {
+  if (!db) return;
   // Check if old data exists
   const oldProgressPath = `users/${userId}/config/progress`;
   const oldQuestionsPath = `users/${userId}/questions`;
@@ -207,14 +208,14 @@ async function migrateUserData(userId: string) {
 }
 
 export async function loadUserData(forceRefresh = false) {
-  const userId = auth.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid || 'guest';
   
-  if (!forceRefresh || !auth.currentUser) {
+  if (!forceRefresh || !auth?.currentUser || !db) {
     const cached = loadFromLocal(userId, 'packs');
     if (cached) return { packs: cached };
   }
 
-  if (!auth.currentUser) return { packs: [] };
+  if (!auth?.currentUser || !db) return { packs: [] };
 
   // Try migration first
   await migrateUserData(userId);
@@ -242,9 +243,9 @@ export async function loadUserData(forceRefresh = false) {
 }
 
 export async function loadPackData(packId: string, forceRefresh = false) {
-  const userId = auth.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid || 'guest';
 
-  if (!forceRefresh || !auth.currentUser) {
+  if (!forceRefresh || !auth?.currentUser || !db) {
     const cached = loadFromLocal(userId, `pack_${packId}_data`);
     if (cached) {
       return {
@@ -254,7 +255,7 @@ export async function loadPackData(packId: string, forceRefresh = false) {
     }
   }
 
-  if (!auth.currentUser) return null;
+  if (!auth?.currentUser || !db) return null;
 
   const dataPath = `users/${userId}/packs/${packId}/data`;
   try {
@@ -314,7 +315,7 @@ export async function loadPackData(packId: string, forceRefresh = false) {
 }
 
 export async function syncGuestDataToFirestore() {
-  if (!auth.currentUser) return false;
+  if (!auth?.currentUser || !db) return false;
   const userId = auth.currentUser.uid;
   const guestPacks = loadFromLocal('guest', 'packs');
   
@@ -370,7 +371,7 @@ export async function syncGuestDataToFirestore() {
 }
 
 export async function ensureUserRecord(email: string) {
-  if (!auth.currentUser) return;
+  if (!auth?.currentUser || !db) return;
   const path = `users/${auth.currentUser.uid}`;
   try {
     await setDoc(doc(db, path), {

@@ -164,6 +164,11 @@ export default function App() {
 
   // Auth Listener
   useEffect(() => {
+    if (!auth) {
+      setIsAuthLoading(false);
+      loadInitialData();
+      return;
+    }
     setIsAuthLoading(true);
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
       setUser(u);
@@ -226,6 +231,10 @@ export default function App() {
   }, [user, activePack, inputText, setSize, activeSet, session, allQuestions, setsMastery]);
 
   const handleLogin = useCallback(async () => {
+    if (!auth) {
+      setAuthError("Firebase is not configured. Please add your API keys in the Settings menu.");
+      return;
+    }
     setAuthError(null);
     setIsAuthLoading(true);
     try {
@@ -243,7 +252,7 @@ export default function App() {
   }, []);
 
   const handleLogout = useCallback(async () => {
-    await signOut(auth);
+    if (auth) await signOut(auth);
     setInputText('');
     setAllQuestions([]);
     setActiveSet(null);
