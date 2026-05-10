@@ -17,12 +17,23 @@ interface LandingViewProps {
   parseProgress: number;
   parseError: string | null;
   authError: string | null;
+  onBack?: () => void;
 }
 
-export default function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets, isParsing, parseProgress, parseError, authError }: LandingViewProps) {
+export default function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets, isParsing, parseProgress, parseError, authError, onBack }: LandingViewProps) {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 md:py-20 flex flex-col items-center text-center">
-      <div className="w-full flex justify-end mb-8">
+      <div className="w-full flex justify-between items-center mb-8">
+        {onBack ? (
+          <button 
+            onClick={onBack}
+            className="flex items-center gap-2 px-6 py-3 bg-white hover:bg-gray-50 text-gray-600 font-bold rounded-xl shadow-md border border-gray-100 transition-all"
+          >
+            <ChevronRight className="w-5 h-5 rotate-180" />
+            <span>Back to Packs</span>
+          </button>
+        ) : <div />}
+        
         {user ? (
           <div className="flex items-center gap-4 bg-white p-2 pr-4 rounded-full shadow-md border border-gray-100">
             {user.photoURL && <img referrerPolicy="no-referrer" src={user.photoURL} alt="" className="w-8 h-8 rounded-full" />}

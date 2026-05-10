@@ -251,15 +251,15 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
                     key={opt}
                     onClick={() => handleAnswer(opt)}
                     disabled={!!feedback}
-                    className={`group relative p-2.5 md:p-5 text-left rounded-xl md:rounded-2xl border-2 transition-all flex items-center gap-2.5 md:gap-5 ${btnClass}`}
+                    className={`group relative p-3 md:p-5 text-left rounded-xl md:rounded-2xl border-2 transition-all flex items-center gap-3 md:gap-5 ${btnClass} active:scale-[0.98]`}
                   >
-                    <span className="flex-shrink-0 w-7 h-7 md:w-10 md:h-10 flex items-center justify-center bg-white/10 rounded-lg md:rounded-xl font-black text-xs md:text-lg group-hover:bg-white/20 transition-colors">
+                    <span className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-white/10 rounded-lg md:rounded-xl font-black text-xs md:text-lg group-hover:bg-white/20 transition-colors">
                       {letters[idx]}
                     </span>
-                    <span className="text-sm md:text-xl font-bold leading-tight">{opt}</span>
+                    <span className="text-sm md:text-xl font-bold leading-tight break-words flex-1 pr-6">{opt}</span>
                     
-                    {feedback && isCorrect && <CheckCircle2 className="absolute right-3 md:right-6 w-5 h-5 md:w-8 md:h-8 text-emerald-500" />}
-                    {feedback === 'wrong' && !isCorrect && <XCircle className="absolute right-3 md:right-6 w-5 h-5 md:w-8 md:h-8 text-red-500 opacity-30" />}
+                    {feedback && isCorrect && <CheckCircle2 className="flex-shrink-0 w-5 h-5 md:w-8 md:h-8 text-emerald-500" />}
+                    {feedback === 'wrong' && !isCorrect && <XCircle className="flex-shrink-0 w-5 h-5 md:w-8 md:h-8 text-red-500 opacity-30" />}
                   </motion.button>
                 );
               })}

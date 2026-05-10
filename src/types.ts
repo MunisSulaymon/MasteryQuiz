@@ -12,7 +12,21 @@ export interface Question {
   box: 1 | 2 | 3;
 }
 
-export type AppView = 'landing' | 'selection' | 'quiz' | 'summary' | 'drill' | 'victory';
+export type AppView = 'landing' | 'packs' | 'selection' | 'quiz' | 'summary' | 'drill' | 'victory';
+
+export type SyncStatus = 'synced' | 'syncing' | 'offline';
+
+export interface QuizPack {
+  id: string;
+  name: string;
+  color: string;
+  createdAt: number;
+  deleteAt: number | null;
+  questionCount: number;
+  lastStudied: number;
+  inputText?: string;
+  setSize: number;
+}
 
 export interface QuizSet {
   id: number;

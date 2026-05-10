@@ -5,16 +5,16 @@
 
 import { Question, QuizSet } from './types';
 
-function normalizeUzbekText(text: string): string {
+export function normalizeUzbekText(text: string): string {
   if (!text) return '';
   
-  // Repair common mojibake (UTF-8 bytes misinterpreted as ISO-8859-1/Windows-1252)
-  // This handles the "Ð¾â€˜" type issues specifically for Uzbek characters
+  // Repair common mojibake and encoding issues specifically for Uzbek characters
+  // This handles the "Ð¾â€˜" type issues specifically for Uzbek characters (Cyrillic o + smart quote)
   let repaired = text
-    .replace(/\u00D0\u00BE\u00E2\u20AC\u2018/g, "o'") // o' (Cyrillic o + smart quote)
-    .replace(/\u00D0\u00BE\u00E2\u20AC\u2122/g, "o'") // o'
-    .replace(/\u00D0\u00B3\u00E2\u20AC\u2018/g, "g'") // g'
-    .replace(/\u00D0\u00B3\u00E2\u20AC\u2122/g, "g'") // g'
+    .replace(/\u00D0\u00BE\u00E2\u20AC\u2018/g, "o'") 
+    .replace(/\u00D0\u00BE\u00E2\u20AC\u2122/g, "o'") 
+    .replace(/\u00D0\u00B3\u00E2\u20AC\u2018/g, "g'") 
+    .replace(/\u00D0\u00B3\u00E2\u20AC\u2122/g, "g'") 
     .replace(/\u00D0\u00BE/g, "o") 
     .replace(/\u00D0\u00B3/g, "g")
     .replace(/\u00E2\u20AC\u2018/g, "'")
@@ -23,9 +23,22 @@ function normalizeUzbekText(text: string): string {
     .replace(/\u00E2\u20AC\u009D/g, '"')
     .replace(/â€™/g, "'")
     .replace(/â€˜/g, "'")
-    .replace(/â€[“”]/g, '"');
+    .replace(/â€[“”]/g, '"')
+    .replace(/ʻ/g, "'") // Handle specific Uzbek/Cyrillic apostrophe
+    .replace(/ʼ/g, "'")
+    .replace(/‘/g, "'")
+    .replace(/’/g, "'")
+    .replace(/`/g, "'");
 
-  // Standardize Uzbek apostrophes and smart quotes
+  // Standardize Uzbek specific Latin characters that often get mixed up
+  // o' and g' standardization
+  repaired = repaired
+    .replace(/o[''']/g, "o'")
+    .replace(/O[''']/g, "O'")
+    .replace(/g[''']/g, "g'")
+    .replace(/G[''']/g, "G'");
+
+  // Standardize all other variants of quotes
   return repaired
     .replace(/[\u2018\u2019\u201B\u02BB\u02BC\u0027\u0060\u00B4]/g, "'") 
     .replace(/[\u201C\u201D\u201F\u00AB\u00BB]/g, '"')

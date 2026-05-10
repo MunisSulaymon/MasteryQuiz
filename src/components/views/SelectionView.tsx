@@ -13,9 +13,10 @@ interface SelectionViewProps {
   user: User | null;
   setSize: number;
   setSetSize: (n: number) => void;
+  onEditPack?: () => void;
 }
 
-export default function SelectionView({ sets, onSelect, onQuickTest, onResetSet, onBack, onLogout, user, setSize, setSetSize }: SelectionViewProps) {
+export default function SelectionView({ sets, onSelect, onQuickTest, onResetSet, onBack, onLogout, user, setSize, setSetSize, onEditPack }: SelectionViewProps) {
   const totalQuestions = sets.reduce((acc, s) => acc + s.questions.length, 0);
   
   const fullSets = Math.floor(totalQuestions / setSize);
@@ -28,12 +29,18 @@ export default function SelectionView({ sets, onSelect, onQuickTest, onResetSet,
     <div className="max-w-4xl mx-auto px-6 py-20 pb-40">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-6">
         <div>
+          <button 
+            onClick={onBack}
+            className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-2 flex items-center gap-1 hover:translate-x-[-4px] transition-transform"
+          >
+            ← Back to Packs
+          </button>
           <h2 className="text-4xl font-black mb-2 tracking-tight">Select a Set</h2>
           <p className="text-gray-500 font-medium">Found {totalQuestions} questions.</p>
         </div>
         <div className="flex items-center gap-4">
           <button 
-            onClick={onBack}
+            onClick={onEditPack}
             className="px-6 py-3 bg-white hover:bg-gray-50 rounded-xl font-bold border border-gray-200 transition-all text-gray-600 shadow-sm"
           >
             {user ? 'Edit Questions' : 'Paste Again'}
