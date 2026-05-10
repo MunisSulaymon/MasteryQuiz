@@ -35,21 +35,17 @@ service cloud.firestore {
     }
 
     function isValidPack(data) {
-      return data.name is string && data.name.size() <= 100 &&
-             (data.get('id', '') is string && data.get('id', '').size() <= 64) &&
-             (data.get('color', 'indigo') is string) &&
-             (data.get('setSize', 0) is number) &&
-             (data.get('questionCount', 0) is number);
+      return data is map &&
+             (data.get('name', '') is string) &&
+             (data.get('id', '') is string);
     }
 
     function isValidQuestionsData(data) {
-      return data.get('states', []) is list &&
-             (data.get('lastUpdated', 0) == request.time || data.get('lastUpdated', 0) is timestamp);
+      return data is map;
     }
 
     function isValidSetsData(data) {
-      return data.get('mastery', {}) is map &&
-             (data.get('lastUpdated', 0) == request.time || data.get('lastUpdated', 0) is timestamp);
+      return data is map;
     }
 
     // Collection Matches

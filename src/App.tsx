@@ -138,11 +138,15 @@ export default function App() {
         const newId = await createPack(packData);
         if (newId) {
           const newPack: QuizPack = { 
-            ...packData, 
+            name: packData.name || 'New Pack',
+            color: packData.color || 'indigo',
             id: newId, 
             createdAt: Date.now(), 
             lastStudied: Date.now(), 
-            questionCount: 0 
+            questionCount: 0,
+            deleteAt: packData.deleteAt || null,
+            inputText: '',
+            setSize: 20
           } as QuizPack;
           setPacks(prev => [newPack, ...prev]);
         }
@@ -153,31 +157,49 @@ export default function App() {
     } catch (err: any) {
       console.error("Save pack failed:", err);
       setSyncStatus('offline');
-      const msg = err.message || "Unknown error";
-      alert(`Failed to save pack: ${msg}`);
+      
+      let errorMsg = "Unknown error";
+      try {
+        const info = JSON.parse(err.message);
+        errorMsg = info.error || errorMsg;
+      } catch {
+        errorMsg = err.message || errorMsg;
+      }
+      
+      alert(`Failed to save pack: ${errorMsg}. Please try again.`);
     }
   };
 
   const handleDeletePack = async () => {
     if (!deletingPack) return;
+    const packToDelete = deletingPack;
+    setDeletingPack(null);
     setIsDataLoading(true);
     setSyncStatus('syncing');
+    
     try {
-      await deletePack(deletingPack.id);
-      setPacks(prev => prev.filter(p => p.id !== deletingPack.id));
-      if (activePack?.id === deletingPack.id) {
+      await deletePack(packToDelete.id);
+      setPacks(prev => prev.filter(p => p.id !== packToDelete.id));
+      if (activePack?.id === packToDelete.id) {
          setActivePack(null);
          setView('packs');
       }
       setSyncStatus(user ? 'synced' : 'offline');
-    } catch (err) {
+    } catch (err: any) {
       console.error("Delete pack failed:", err);
       setSyncStatus('offline');
-      // If it fails on server, still update local if we can or tell user
-      alert("Note: Cloud deletion failed, but pack removed from view. Sync might resolve later.");
-      setPacks(prev => prev.filter(p => p.id !== deletingPack.id));
+      
+      let errorMsg = "Cloud sync error";
+      try {
+        const info = JSON.parse(err.message);
+        errorMsg = info.error || errorMsg;
+      } catch {
+        errorMsg = err.message || errorMsg;
+      }
+      
+      alert(`Cloud deletion failed: ${errorMsg}. local copy removed.`);
+      setPacks(prev => prev.filter(p => p.id !== packToDelete.id));
     } finally {
-      setDeletingPack(null);
       setIsDataLoading(false);
     }
   };
