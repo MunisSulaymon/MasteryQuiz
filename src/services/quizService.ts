@@ -54,6 +54,10 @@ export async function createPack(pack: Partial<QuizPack>) {
     questionCount: pack.questionCount || 0,
   };
 
+  // Update local cache FIRST for immediate UI feedback
+  const cachedPacks = loadFromLocal(userId, 'packs') || [];
+  saveToLocal(userId, 'packs', [newPack, ...cachedPacks]);
+
   if (db && auth?.currentUser) {
     const path = `users/${userId}/packs/${packId}`;
     try {
@@ -63,13 +67,10 @@ export async function createPack(pack: Partial<QuizPack>) {
         lastStudied: serverTimestamp(),
       });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
+      console.error("Firestore creation failed, kept in local storage", error);
+      // We don't re-throw here to allow app to continue in "offline" mode
     }
   }
-
-  // Update local cache
-  const cachedPacks = loadFromLocal(userId, 'packs') || [];
-  saveToLocal(userId, 'packs', [newPack, ...cachedPacks]);
   
   return packId;
 }
@@ -77,6 +78,11 @@ export async function createPack(pack: Partial<QuizPack>) {
 export async function updatePack(packId: string, updates: Partial<QuizPack>) {
   const userId = auth?.currentUser?.uid || 'guest';
   
+  // Update local cache first
+  const cachedPacks = loadFromLocal(userId, 'packs') || [];
+  const updated = cachedPacks.map((p: QuizPack) => p.id === packId ? { ...p, ...updates } : p);
+  saveToLocal(userId, 'packs', updated);
+
   if (db && auth?.currentUser) {
     const path = `users/${userId}/packs/${packId}`;
     try {
@@ -85,19 +91,19 @@ export async function updatePack(packId: string, updates: Partial<QuizPack>) {
         lastUpdated: serverTimestamp(),
       }, { merge: true });
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
+      console.error("Firestore update failed, kept in local storage", error);
     }
   }
-  
-  // Update local cache
-  const cachedPacks = loadFromLocal(userId, 'packs') || [];
-  const updated = cachedPacks.map((p: QuizPack) => p.id === packId ? { ...p, ...updates } : p);
-  saveToLocal(userId, 'packs', updated);
 }
 
 export async function deletePack(packId: string) {
   const userId = auth?.currentUser?.uid || 'guest';
   
+  // Update local cache first
+  const cachedPacks = loadFromLocal(userId, 'packs') || [];
+  saveToLocal(userId, 'packs', cachedPacks.filter((p: QuizPack) => p.id !== packId));
+  localStorage.removeItem(getCacheKey(userId, `pack_${packId}_data`));
+
   if (db && auth?.currentUser) {
     const path = `users/${userId}/packs/${packId}`;
     try {
@@ -107,19 +113,25 @@ export async function deletePack(packId: string) {
       batch.delete(doc(db, path));
       await batch.commit();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
+       console.error("Firestore delete failed, removed from local", error);
     }
   }
-
-  // Update local cache
-  const cachedPacks = loadFromLocal(userId, 'packs') || [];
-  saveToLocal(userId, 'packs', cachedPacks.filter((p: QuizPack) => p.id !== packId));
-  localStorage.removeItem(getCacheKey(userId, `pack_${packId}_data`));
 }
 
 export async function syncSessionData(packId: string, questions: Question[], setsMastery: Map<number, any>, inputText: string, setSize: number) {
   const userId = auth?.currentUser?.uid || 'guest';
   
+  // Update local cache first
+  const packData = {
+    questionsState: new Map(questions.map(q => [q.id, { box: q.box, wrongCount: q.wrongCount }])),
+    setsMastery: setsMastery
+  };
+  saveToLocal(userId, `pack_${packId}_data`, { 
+    ...packData, 
+    questionsState: Array.from(packData.questionsState.entries()),
+    setsMastery: Array.from(packData.setsMastery.entries())
+  });
+
   if (db && auth?.currentUser) {
     const packPath = `users/${userId}/packs/${packId}`;
     try {
@@ -149,20 +161,10 @@ export async function syncSessionData(packId: string, questions: Question[], set
 
       await batch.commit();
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, packPath);
+      console.error("Sync to cloud failed, progress saved locally", error);
+      throw error; // keep throwing for sync UI status
     }
   }
-  
-  // Update local cache
-  const packData = {
-    questionsState: new Map(questions.map(q => [q.id, { box: q.box, wrongCount: q.wrongCount }])),
-    setsMastery: setsMastery
-  };
-  saveToLocal(userId, `pack_${packId}_data`, { 
-    ...packData, 
-    questionsState: Array.from(packData.questionsState.entries()),
-    setsMastery: Array.from(packData.setsMastery.entries())
-  });
 }
 
 async function migrateUserData(userId: string) {
@@ -223,10 +225,16 @@ export async function loadUserData(forceRefresh = false) {
     if (cached) return { packs: cached };
   }
 
-  if (!auth?.currentUser || !db) return { packs: [] };
+  if (!auth?.currentUser || !db) {
+    return { packs: loadFromLocal(userId, 'packs') || [] };
+  }
 
-  // Try migration first
-  await migrateUserData(userId);
+  // Try migration first but don't let it block
+  try {
+    await migrateUserData(userId);
+  } catch (e) {
+    console.warn("Migration failed or not needed", e);
+  }
 
   const packsPath = `users/${userId}/packs`;
   try {
@@ -244,17 +252,19 @@ export async function loadUserData(forceRefresh = false) {
 
     saveToLocal(userId, 'packs', packs);
     return { packs };
-  } catch (error) {
-    handleFirestoreError(error, OperationType.GET, `users/${userId}/packs`);
-    return null;
+  } catch (error: any) {
+    console.error("Load from cloud failed, using local", error);
+    const cached = loadFromLocal(userId, 'packs');
+    if (cached) return { packs: cached };
+    return { packs: [] };
   }
 }
 
 export async function loadPackData(packId: string, forceRefresh = false) {
   const userId = auth?.currentUser?.uid || 'guest';
 
+  const cached = loadFromLocal(userId, `pack_${packId}_data`);
   if (!forceRefresh || !auth?.currentUser || !db) {
-    const cached = loadFromLocal(userId, `pack_${packId}_data`);
     if (cached) {
       return {
         questionsState: new Map(cached.questionsState),
@@ -277,13 +287,9 @@ export async function loadPackData(packId: string, forceRefresh = false) {
     if (qSnap.exists()) {
       const states = qSnap.data().states || [];
       states.forEach((s: any) => questionsStateMap.set(s.id, { box: s.box, wrongCount: s.wrongCount }));
-    } else {
-      // Fallback for old structure migration on the fly
-      const oldQs = await getDocs(collection(db, `users/${userId}/packs/${packId}/questions`));
-      oldQs.forEach(d => {
-        const data = d.data();
-        questionsStateMap.set(data.id, { box: data.box, wrongCount: data.wrongCount });
-      });
+    } else if (cached) {
+       // use cached if exists and cloud fail
+       cached.questionsState.forEach(([id, s]: [string, any]) => questionsStateMap.set(id, s));
     }
 
     const setsMasteryMap = new Map();
@@ -292,16 +298,8 @@ export async function loadPackData(packId: string, forceRefresh = false) {
       Object.entries(mastery).forEach(([key, val]: [string, any]) => {
          setsMasteryMap.set(Number(key), val);
       });
-    } else {
-      // Fallback for old structure
-      const oldSets = await getDocs(collection(db, `users/${userId}/packs/${packId}/sets`));
-      oldSets.forEach(d => {
-        const data = d.data();
-        setsMasteryMap.set(Number(d.id), { 
-          bestRounds: data.bestRounds, 
-          lastMastered: toMillis(data.lastMastered) || Date.now() 
-        });
-      });
+    } else if (cached) {
+       cached.setsMastery.forEach(([k, v]: [number, any]) => setsMasteryMap.set(k, v));
     }
 
     const result = {
@@ -317,7 +315,13 @@ export async function loadPackData(packId: string, forceRefresh = false) {
 
     return result;
   } catch (error) {
-    handleFirestoreError(error, OperationType.GET, dataPath);
+    console.warn("Load pack data from cloud failed, using local", error);
+    if (cached) {
+      return {
+        questionsState: new Map(cached.questionsState),
+        setsMastery: new Map(cached.setsMastery)
+      };
+    }
     return null;
   }
 }
@@ -329,53 +333,58 @@ export async function syncGuestDataToFirestore() {
   
   if (!guestPacks || guestPacks.length === 0) return false;
 
-  const batch = writeBatch(db);
-  
-  for (const pack of guestPacks) {
-    const packPath = `users/${userId}/packs/${pack.id}`;
-    batch.set(doc(db, packPath), {
-      ...pack,
-      createdAt: serverTimestamp(),
-      lastStudied: serverTimestamp(),
+  try {
+    const batch = writeBatch(db);
+    
+    for (const pack of guestPacks) {
+      const packPath = `users/${userId}/packs/${pack.id}`;
+      batch.set(doc(db, packPath), {
+        ...pack,
+        createdAt: serverTimestamp(),
+        lastStudied: serverTimestamp(),
+      });
+
+      // Sync pack data (questions and sets)
+      const guestData = loadFromLocal('guest', `pack_${pack.id}_data`);
+      if (guestData) {
+        const dataPath = `users/${userId}/packs/${pack.id}/data`;
+        
+        const questionsState = guestData.questionsState.map(([id, state]: [string, any]) => ({ id, ...state }));
+        batch.set(doc(db, `${dataPath}/questions`), {
+          states: questionsState,
+          lastUpdated: serverTimestamp()
+        });
+
+        const setsMasteryObj: Record<string, any> = {};
+        guestData.setsMastery.forEach(([key, val]: [number, any]) => {
+          setsMasteryObj[key] = val;
+        });
+        batch.set(doc(db, `${dataPath}/sets`), {
+          mastery: setsMasteryObj,
+          lastUpdated: serverTimestamp()
+        });
+
+        // Update local storage for the user as well
+        saveToLocal(userId, `pack_${pack.id}_data`, guestData);
+      }
+    }
+
+    await batch.commit();
+    
+    // Update packs in user local storage
+    saveToLocal(userId, 'packs', guestPacks);
+    
+    // Clear guest data
+    localStorage.removeItem(getCacheKey('guest', 'packs'));
+    guestPacks.forEach((p: QuizPack) => {
+      localStorage.removeItem(getCacheKey('guest', `pack_${p.id}_data`));
     });
 
-    // Sync pack data (questions and sets)
-    const guestData = loadFromLocal('guest', `pack_${pack.id}_data`);
-    if (guestData) {
-      const dataPath = `users/${userId}/packs/${pack.id}/data`;
-      
-      const questionsState = guestData.questionsState.map(([id, state]: [string, any]) => ({ id, ...state }));
-      batch.set(doc(db, `${dataPath}/questions`), {
-        states: questionsState,
-        lastUpdated: serverTimestamp()
-      });
-
-      const setsMasteryObj: Record<string, any> = {};
-      guestData.setsMastery.forEach(([key, val]: [number, any]) => {
-        setsMasteryObj[key] = val;
-      });
-      batch.set(doc(db, `${dataPath}/sets`), {
-        mastery: setsMasteryObj,
-        lastUpdated: serverTimestamp()
-      });
-
-      // Update local storage for the user as well
-      saveToLocal(userId, `pack_${pack.id}_data`, guestData);
-    }
+    return true;
+  } catch (e) {
+    console.error("Guest sync failed", e);
+    return false;
   }
-
-  await batch.commit();
-  
-  // Update packs in user local storage
-  saveToLocal(userId, 'packs', guestPacks);
-  
-  // Clear guest data
-  localStorage.removeItem(getCacheKey('guest', 'packs'));
-  guestPacks.forEach((p: QuizPack) => {
-    localStorage.removeItem(getCacheKey('guest', `pack_${p.id}_data`));
-  });
-
-  return true;
 }
 
 export async function ensureUserRecord(email: string) {
@@ -387,6 +396,6 @@ export async function ensureUserRecord(email: string) {
       lastUpdated: serverTimestamp(),
     }, { merge: true });
   } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, path);
+    console.error("User record creation failed:", error);
   }
 }
