@@ -18,6 +18,14 @@ function getCacheKey(userId: string, suffix: string) {
   return `${CACHE_KEY_PREFIX}${userId}_${suffix}`;
 }
 
+function toMillis(val: any): number | null {
+  if (val === null || val === undefined) return null;
+  if (typeof val === 'number') return val;
+  if (typeof val.toMillis === 'function') return val.toMillis();
+  if (val instanceof Date) return val.getTime();
+  return null;
+}
+
 export function saveToLocal(userId: string, suffix: string, data: any) {
   try {
     localStorage.setItem(getCacheKey(userId, suffix), JSON.stringify(data));
@@ -228,9 +236,9 @@ export async function loadUserData(forceRefresh = false) {
       return {
         ...data,
         id: doc.id,
-        createdAt: data.createdAt?.toMillis() || Date.now(),
-        lastStudied: data.lastStudied?.toMillis() || Date.now(),
-        deleteAt: data.deleteAt?.toMillis() || null,
+        createdAt: toMillis(data.createdAt) || Date.now(),
+        lastStudied: toMillis(data.lastStudied) || Date.now(),
+        deleteAt: toMillis(data.deleteAt),
       } as QuizPack;
     });
 
@@ -291,7 +299,7 @@ export async function loadPackData(packId: string, forceRefresh = false) {
         const data = d.data();
         setsMasteryMap.set(Number(d.id), { 
           bestRounds: data.bestRounds, 
-          lastMastered: data.lastMastered?.toMillis() || Date.now() 
+          lastMastered: toMillis(data.lastMastered) || Date.now() 
         });
       });
     }
