@@ -10,15 +10,18 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const isConfigValid = !!firebaseConfig.apiKey && firebaseConfig.apiKey !== 'undefined';
+const isConfigValid = !!firebaseConfig.apiKey && 
+                       firebaseConfig.apiKey !== 'undefined' && 
+                       firebaseConfig.apiKey !== 'null' && 
+                       firebaseConfig.apiKey.trim() !== '';
 
 if (!isConfigValid) {
-  console.warn('Firebase configuration is missing. The app will run in Guest Mode (Offline). To enable cloud sync, add the VITE_FIREBASE_* keys in the Settings menu.');
+  console.warn('Firebase configuration is missing or invalid. The app will run in Guest Mode (Offline). To enable cloud sync, add the VITE_FIREBASE_* keys in the Settings menu.');
 }
 
 export const app = isConfigValid ? initializeApp(firebaseConfig) : null;
 export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app, import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID) : null;
+export const db = app ? getFirestore(app, import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || undefined) : null;
 
 export enum OperationType {
   CREATE = 'create',
@@ -50,12 +53,12 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
+      userId: auth?.currentUser?.uid,
+      email: auth?.currentUser?.email,
+      emailVerified: auth?.currentUser?.emailVerified,
+      isAnonymous: auth?.currentUser?.isAnonymous,
+      tenantId: auth?.currentUser?.tenantId,
+      providerInfo: auth?.currentUser?.providerData?.map(provider => ({
         providerId: provider.providerId,
         email: provider.email,
       })) || []

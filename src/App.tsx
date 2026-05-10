@@ -529,6 +529,7 @@ export default function App() {
                 parseProgress={parseProgress}
                 parseError={parseError}
                 authError={authError}
+                onClearAuthError={() => setAuthError(null)}
                 onBack={() => setView('packs')}
               />
             </motion.div>

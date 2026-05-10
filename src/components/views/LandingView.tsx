@@ -17,10 +17,11 @@ interface LandingViewProps {
   parseProgress: number;
   parseError: string | null;
   authError: string | null;
+  onClearAuthError?: () => void;
   onBack?: () => void;
 }
 
-export default function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets, isParsing, parseProgress, parseError, authError, onBack }: LandingViewProps) {
+export default function LandingView({ inputText, setInputText, onParse, user, onLogin, onLogout, isDataLoading, sets, isParsing, parseProgress, parseError, authError, onClearAuthError, onBack }: LandingViewProps) {
   return (
     <div className="max-w-4xl mx-auto px-6 py-12 md:py-20 flex flex-col items-center text-center">
       <div className="w-full flex justify-between items-center mb-8">
@@ -70,9 +71,16 @@ export default function LandingView({ inputText, setInputText, onParse, user, on
       )}
 
       {authError && (
-        <div className="w-full bg-orange-50 border border-orange-200 text-orange-700 px-6 py-4 rounded-2xl mb-8 flex items-center gap-3 text-left">
-          <XCircle className="w-6 h-6 flex-shrink-0" />
-          <p className="font-medium">{authError}</p>
+        <div className="w-full bg-orange-50 border border-orange-200 text-orange-700 px-6 py-4 rounded-2xl mb-8 flex items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-3">
+            <XCircle className="w-6 h-6 flex-shrink-0" />
+            <p className="font-medium">{authError}</p>
+          </div>
+          {onClearAuthError && (
+            <button onClick={onClearAuthError} className="p-1 hover:bg-orange-100 rounded-full transition-colors">
+              <XCircle className="w-5 h-5 opacity-50" />
+            </button>
+          )}
         </div>
       )}
 
