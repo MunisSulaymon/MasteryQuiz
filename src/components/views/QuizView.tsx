@@ -244,8 +244,8 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
                 const match = opt.match(/^([A-H])\s*[).]/i);
                 const extractedLabel = match ? match[1].toUpperCase() : null;
                 
-                // Clean up prefixes like A), B), 1., 2. if they match the current index or are common
-                const displayOpt = opt.replace(/^[A-H][).]\s*/i, '').replace(/^\d+[).]\s*/, '').trim();
+                // Clean up prefixes like A), B), 1., 2. or even just "A Option" if they match common patterns
+                const displayOpt = opt.replace(/^[A-H][).]?\s+/i, '').replace(/^\d+[).]?\s+/, '').trim();
                 
                 let btnClass = "bg-white/10 hover:bg-white/20 border-transparent text-white";
                 if (feedback) {

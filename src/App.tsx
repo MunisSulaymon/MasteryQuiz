@@ -451,31 +451,30 @@ export default function App() {
   );
 
   const SyncIndicator = () => (
-    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-2 bg-white rounded-full shadow-2xl border border-gray-100 ring-4 ring-gray-900/5 select-none">
+    <div 
+      onClick={() => { if (user) handleRefresh(); }}
+      className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 bg-white rounded-full shadow-2xl border border-gray-100 ring-4 ring-gray-900/5 select-none transition-all active:scale-95 ${user ? 'cursor-pointer hover:bg-gray-50' : ''}`}
+    >
       {syncStatus === 'syncing' ? (
         <>
-          <RefreshCcw className="w-4 h-4 text-indigo-500 animate-spin" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-indigo-500 italic">Syncing...</span>
+          <RefreshCcw className="w-4 h-4 md:w-5 md:h-5 text-indigo-500 animate-spin" />
+          <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-indigo-500 italic">Syncing...</span>
         </>
       ) : syncStatus === 'offline' ? (
         <>
-          <CloudOff className="w-4 h-4 text-orange-500" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-orange-500">{user ? 'Offline - Saved Locally' : 'Guest - Local Storage only'}</span>
+          <CloudOff className="w-4 h-4 md:w-5 md:h-5 text-orange-500" />
+          <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-orange-500">{user ? 'Offline - Saved Locally' : 'Guest - Local Storage only'}</span>
         </>
       ) : (
         <>
-          <Cloud className="w-4 h-4 text-emerald-500" />
-          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-500">Synced</span>
+          <Cloud className="w-4 h-4 md:w-5 md:h-5 text-emerald-500" />
+          <span className="text-[10px] md:text-xs font-black uppercase tracking-widest text-emerald-500">Synced</span>
         </>
       )}
       {user && (
-        <button 
-          onClick={handleRefresh}
-          title="Sync now"
-          className="ml-2 hover:scale-110 transition-transform active:rotate-180 duration-500"
-        >
-          <RefreshCcw className="w-3 h-3 text-gray-400" />
-        </button>
+        <div className="ml-1 pl-2 border-l border-gray-100">
+           <RefreshCcw className={`w-4 h-4 text-gray-400 ${syncStatus === 'syncing' ? 'opacity-0' : 'opacity-100'}`} />
+        </div>
       )}
     </div>
   );
