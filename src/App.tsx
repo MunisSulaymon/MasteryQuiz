@@ -145,7 +145,7 @@ export default function App() {
   const handleDeletePack = async () => {
     if (!deletingPack) return;
     await deletePack(deletingPack.id);
-    setPacks(prev => prev.filter(p => p.id === deletingPack.id));
+    setPacks(prev => prev.filter(p => p.id !== deletingPack.id));
     setDeletingPack(null);
     if (activePack?.id === deletingPack.id) {
        setActivePack(null);

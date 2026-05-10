@@ -46,7 +46,7 @@ export function normalizeUzbekText(text: string): string {
 }
 
 export function parseSingleQuestion(block: string, id: string): Question | null {
-  const lines = block.split(/====/).map(l => normalizeUzbekText(l)).filter(Boolean);
+  const lines = block.split(/\s*====\s*/).map(l => normalizeUzbekText(l)).filter(Boolean);
   if (lines.length < 2) return null;
 
   const stem = lines[0];
@@ -82,7 +82,7 @@ export function parseQuestions(input: string): Question[] {
   if (!input || !input.trim()) return [];
 
   const normalizedInput = normalizeUzbekText(input);
-  const rawBlocks = normalizedInput.split(/\+\+\+\+/).map(block => block.trim()).filter(Boolean);
+  const rawBlocks = normalizedInput.split(/\s*\+\+\+\+\s*/).map(block => block.trim()).filter(Boolean);
   const now = Date.now();
   const questions: Question[] = [];
   
