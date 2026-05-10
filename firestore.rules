@@ -16,7 +16,7 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128;
     }
 
     function incoming() {
@@ -42,8 +42,9 @@ service cloud.firestore {
              (data.inputText == null || (data.inputText is string && data.inputText.size() <= 100000)) &&
              (data.setSize == null || (data.setSize is number && data.setSize >= 1 && data.setSize <= 100)) &&
              (data.questionCount == null || (data.questionCount is number)) &&
-             (data.createdAt == null || data.createdAt == request.time || data.createdAt is timestamp) &&
-             (data.lastStudied == null || data.lastStudied == request.time || data.lastStudied is timestamp);
+             (data.createdAt == null || data.createdAt == request.time || data.createdAt is timestamp || data.createdAt is number) &&
+             (data.lastStudied == null || data.lastStudied == request.time || data.lastStudied is timestamp || data.lastStudied is number) &&
+             (data.lastUpdated == null || data.lastUpdated == request.time || data.lastUpdated is timestamp || data.lastUpdated is number);
     }
 
     function isValidQuestionsData(data) {

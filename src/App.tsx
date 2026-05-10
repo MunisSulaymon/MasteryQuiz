@@ -150,10 +150,11 @@ export default function App() {
       setSyncStatus(user ? 'synced' : 'offline');
       setShowPackModal(false);
       setEditingPack(null);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Save pack failed:", err);
       setSyncStatus('offline');
-      alert("Failed to save pack. Please check your connection.");
+      const msg = err.message || "Unknown error";
+      alert(`Failed to save pack: ${msg}`);
     }
   };
 
