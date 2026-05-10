@@ -2,63 +2,55 @@
   "entities": {
     "User": {
       "title": "User",
-      "description": "User profile information",
+      "description": "User profile document",
       "type": "object",
       "properties": {
-        "email": {
-          "type": "string"
-        },
-        "lastUpdated": {
-          "type": "string",
-          "format": "date-time"
-        }
+        "email": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "email",
-        "lastUpdated"
-      ]
+      "required": ["email"]
     },
-    "QuizProgress": {
-      "title": "Quiz Progress",
-      "description": "The overall progress of a user's quiz session",
+    "QuizPack": {
+      "title": "Quiz Pack",
+      "description": "A collection of questions and study progress",
       "type": "object",
       "properties": {
-        "inputText": {
-          "type": "string"
-        },
-        "currentSetId": {
-          "type": "number"
-        },
-        "activeSetId": {
-          "type": "number"
-        }
+        "name": { "type": "string" },
+        "color": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastStudied": { "type": "string", "format": "date-time" },
+        "questionCount": { "type": "number" },
+        "inputText": { "type": "string" },
+        "setSize": { "type": "number" }
       }
     },
-    "QuestionState": {
-      "title": "Question State",
-      "description": "The mastery state of a specific question",
+    "QuestionsData": {
+      "title": "Questions Data",
+      "description": "Optimized document for question boxes and progress",
       "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
+        "states": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "box": { "type": "number" },
+              "wrongCount": { "type": "number" }
+            }
+          }
         },
-        "box": {
-          "type": "number",
-          "enum": [
-            1,
-            2,
-            3
-          ]
-        },
-        "wrongCount": {
-          "type": "number"
-        }
-      },
-      "required": [
-        "id",
-        "box",
-        "wrongCount"
-      ]
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      }
+    },
+    "SetsData": {
+      "title": "Sets Data",
+      "description": "Optimized document for mastery metrics",
+      "type": "object",
+      "properties": {
+        "mastery": { "type": "object" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "firestore": {
@@ -66,13 +58,17 @@
       "schema": "User",
       "description": "User profile"
     },
-    "/users/{userId}/config/progress": {
-      "schema": "QuizProgress",
-      "description": "General progress state"
+    "/users/{userId}/packs/{packId}": {
+      "schema": "QuizPack",
+      "description": "Quiz packs owned by the user"
     },
-    "/users/{userId}/questions/{questionId}": {
-      "schema": "QuestionState",
-      "description": "Mastery state for each question"
+    "/users/{userId}/packs/{packId}/data/questions": {
+      "schema": "QuestionsData",
+      "description": "Question box states for the pack"
+    },
+    "/users/{userId}/packs/{packId}/data/sets": {
+      "schema": "SetsData",
+      "description": "Set mastery data for the pack"
     }
   }
 }

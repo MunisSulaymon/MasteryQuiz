@@ -1,11 +1,97 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow users to access their own document and all sub-collections
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity Validations
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'lastUpdated']) &&
+             data.email is string && data.email.size() <= 256 &&
+             data.lastUpdated == request.time;
+    }
+
+    function isValidPack(data) {
+      return data.name is string && data.name.size() <= 100 &&
+             (data.color == null || (data.color is string && data.color.size() <= 20)) &&
+             (data.inputText == null || (data.inputText is string && data.inputText.size() <= 100000)) &&
+             (data.setSize == null || (data.setSize is number && data.setSize >= 1 && data.setSize <= 100)) &&
+             (data.questionCount == null || (data.questionCount is number)) &&
+             (data.createdAt == null || data.createdAt == request.time || data.createdAt is timestamp) &&
+             (data.lastStudied == null || data.lastStudied == request.time || data.lastStudied is timestamp);
+    }
+
+    function isValidQuestionsData(data) {
+      return data.states is list && data.states.size() <= 2000 &&
+             (data.lastUpdated == request.time || data.lastUpdated is timestamp);
+    }
+
+    function isValidSetsData(data) {
+      return data.mastery is map && data.mastery.size() <= 200 &&
+             (data.lastUpdated == request.time || data.lastUpdated is timestamp);
+    }
+
+    // Collection Matches
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      match /{allPaths=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['email', 'lastUpdated']);
+
+      match /packs/{packId} {
+        allow list, get: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(packId) && isValidPack(incoming());
+        allow update: if isOwner(userId) && isValidPack(incoming());
+        allow delete: if isOwner(userId);
+
+        match /data/{docId} {
+          allow get: if isOwner(userId);
+          allow write: if isOwner(userId) && (
+            (docId == 'questions' && isValidQuestionsData(incoming())) ||
+            (docId == 'sets' && isValidSetsData(incoming()))
+          );
+        }
+
+        // Legacy/Migration paths
+        match /questions/{qId} {
+          allow read, write: if isOwner(userId);
+        }
+        match /sets/{sId} {
+          allow read, write: if isOwner(userId);
+        }
+      }
+
+      match /config/progress {
+        allow read, write: if isOwner(userId);
+      }
+      match /questions/{qId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /sets/{sId} {
+        allow read, write: if isOwner(userId);
       }
     }
   }
