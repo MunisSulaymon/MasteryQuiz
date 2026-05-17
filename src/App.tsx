@@ -80,7 +80,9 @@ export default function App() {
       const data = await loadUserData(force);
       if (data && data.packs) {
         setPacks(data.packs);
-        setView('packs');
+        if (view === 'landing' || (view === 'packs' && data.packs.length > 0)) {
+           setView('packs');
+        }
         setSyncStatus(user ? 'synced' : 'offline');
       }
     } catch (err) {
@@ -390,9 +392,33 @@ export default function App() {
     }
   }, [view, handleSaveProgress]);
 
-  const handleRefresh = useCallback(() => {
-    loadInitialData(true);
-  }, [loadInitialData]);
+  const handleRefresh = useCallback(async () => {
+    setIsDataLoading(true);
+    setSyncStatus('syncing');
+    try {
+      await loadInitialData(true);
+      if (activePack) {
+        await handleSelectPack(activePack);
+      }
+      setSyncStatus(user ? 'synced' : 'offline');
+    } catch (err) {
+      console.error("Refresh error:", err);
+      setSyncStatus('offline');
+    } finally {
+      setIsDataLoading(false);
+    }
+  }, [loadInitialData, activePack, handleSelectPack, user]);
+
+  // Refresh when returning to tab
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user) {
+        handleRefresh();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user, handleRefresh]);
 
   const WelcomeSyncBanner = () => {
     if (user || bannerDismissed) return null;

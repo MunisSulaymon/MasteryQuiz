@@ -220,11 +220,18 @@ async function migrateUserData(userId: string) {
 export async function loadUserData(forceRefresh = false) {
   const userId = auth?.currentUser?.uid || 'guest';
   
-  // Always fetch from Firestore if user is present to ensure multi-device sync
+  // If guest, use local only
   if (!auth?.currentUser || !db) {
     const cached = loadFromLocal(userId, 'packs');
     if (cached) return { packs: cached };
     return { packs: [] };
+  }
+
+  // If not force refresh, check cache first but we'll fetch anyway to ensure sync
+  const cached = loadFromLocal(userId, 'packs');
+  if (!forceRefresh && cached && cached.length > 0) {
+    // Return cached but initiate a sync in background? 
+    // For now, let's just fetch if user is present to be safe, unless we want to be super fast
   }
 
   // Try migration first but don't let it block
@@ -274,6 +281,7 @@ export async function loadPackData(packId: string, forceRefresh = false) {
     return null;
   }
 
+  // If user is present, always try to fetch from cloud to ensure multi-device sync
   const dataPath = `users/${userId}/packs/${packId}/data`;
   try {
     // Read optimized documents
