@@ -220,13 +220,11 @@ async function migrateUserData(userId: string) {
 export async function loadUserData(forceRefresh = false) {
   const userId = auth?.currentUser?.uid || 'guest';
   
-  if (!forceRefresh || !auth?.currentUser || !db) {
+  // Always fetch from Firestore if user is present to ensure multi-device sync
+  if (!auth?.currentUser || !db) {
     const cached = loadFromLocal(userId, 'packs');
     if (cached) return { packs: cached };
-  }
-
-  if (!auth?.currentUser || !db) {
-    return { packs: loadFromLocal(userId, 'packs') || [] };
+    return { packs: [] };
   }
 
   // Try migration first but don't let it block
@@ -264,16 +262,17 @@ export async function loadPackData(packId: string, forceRefresh = false) {
   const userId = auth?.currentUser?.uid || 'guest';
 
   const cached = loadFromLocal(userId, `pack_${packId}_data`);
-  if (!forceRefresh || !auth?.currentUser || !db) {
+  
+  // If guest or no DB, use local only
+  if (!auth?.currentUser || !db) {
     if (cached) {
       return {
         questionsState: new Map(cached.questionsState),
         setsMastery: new Map(cached.setsMastery)
       };
     }
+    return null;
   }
-
-  if (!auth?.currentUser || !db) return null;
 
   const dataPath = `users/${userId}/packs/${packId}/data`;
   try {
