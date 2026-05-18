@@ -26,6 +26,8 @@ export interface QuizPack {
   lastStudied: number;
   inputText?: string;
   setSize: number;
+  isWeakPack?: boolean;
+  originalExamId?: string;
 }
 
 export interface QuizSet {
@@ -91,4 +93,9 @@ export interface ExamHistory {
   };
   failedQuestionIds: string[];
   createdAt: any;
+  config?: {
+    questionCount: number;
+    timeLimit: number;
+    difficulties: { oson: number; orta: number; qiyin: number };
+  };
 }

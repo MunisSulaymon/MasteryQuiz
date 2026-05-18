@@ -11,11 +11,14 @@ import {
   Trash2,
   MoreVertical,
   Edit2,
-  ArrowLeft
+  ArrowLeft,
+  Target,
+  Sparkles,
+  Trash
 } from 'lucide-react';
 import { QuizPack } from '../../types';
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface PacksViewProps {
   packs: QuizPack[];
@@ -55,7 +58,12 @@ export default function PacksView({
   onExtend
 }: PacksViewProps) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const weakId = searchParams.get('weak');
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
+
+  const weakPack = useMemo(() => packs.find(p => p.id === weakId), [packs, weakId]);
 
   // Check for auto-delete warnings
   const getDeleteWarning = (deleteAt: number | null) => {
@@ -105,6 +113,45 @@ export default function PacksView({
         </div>
       </div>
 
+      <AnimatePresence>
+        {weakPack && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="mb-12 bg-amber-50 border-2 border-amber-200 rounded-[2.5rem] p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl shadow-amber-100"
+          >
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-amber-500 text-white rounded-3xl flex items-center justify-center shadow-lg shadow-amber-200">
+                <Target className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-amber-900 tracking-tight flex items-center gap-2">
+                  🎯 {weakPack.name}
+                </h3>
+                <p className="text-amber-700 font-medium">{weakPack.questionCount} ta savol — Yakuniy Nazoratdan</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <button 
+                onClick={() => onDelete(weakPack)}
+                className="flex-1 md:flex-none px-6 py-4 bg-white border border-amber-200 text-amber-600 rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-amber-100 transition-all flex items-center justify-center gap-2"
+              >
+                <Trash className="w-4 h-4" />
+                O'chirish
+              </button>
+              <button 
+                onClick={() => onSelect(weakPack)}
+                className="flex-1 md:flex-none px-10 py-4 bg-amber-500 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-amber-600 transition-all shadow-lg shadow-amber-200 flex items-center justify-center gap-2"
+              >
+                <Sparkles className="w-4 h-4" />
+                Boshlash
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
         {packs.length === 0 ? (
           <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
@@ -134,7 +181,7 @@ export default function PacksView({
               <motion.div
                 key={pack.id}
                 whileHover={{ y: -5 }}
-                className="relative bg-white rounded-[2.5rem] border border-gray-100 shadow-xl overflow-hidden group"
+                className={`relative bg-white rounded-[2.5rem] border overflow-hidden group shadow-xl ${pack.isWeakPack ? 'border-amber-400 ring-2 ring-amber-100' : 'border-gray-100'}`}
               >
                 {/* Deleting Today Popup Overlay */}
                 <AnimatePresence>
@@ -190,7 +237,7 @@ export default function PacksView({
                         </div>
                       )}
                       <h3 className="text-2xl font-black leading-tight group-hover:text-indigo-600 transition-colors uppercase">
-                        {pack.name}
+                        {pack.isWeakPack ? '🎯 ' : ''}{pack.name}
                       </h3>
                     </div>
                     

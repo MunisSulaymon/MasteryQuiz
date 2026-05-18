@@ -150,6 +150,20 @@ export default function ExamScreen({ user }: ExamScreenProps) {
     else if (score >= 55) { grade = 'Qoniqarli'; ects = 'C'; }
     else { grade = 'Qoniqarsiz'; ects = 'F'; }
 
+    const config = {
+      questionCount: session.questions.length,
+      timeLimit: session.totalTime / 60,
+      difficulties: { oson: 0, orta: 0, qiyin: 0 } // Ideally we'd store the original search params
+    };
+
+    // Try to recover original difficulties from URL if possible, or just use what we have
+    const searchParams = new URLSearchParams(location.search);
+    config.difficulties = {
+      oson: Number(searchParams.get('oson') || 15),
+      orta: Number(searchParams.get('orta') || 55),
+      qiyin: Number(searchParams.get('qiyin') || 30)
+    };
+
     const history: ExamHistory = {
       packId: session.packId,
       examType: session.examType,
@@ -162,12 +176,23 @@ export default function ExamScreen({ user }: ExamScreenProps) {
       timeTotal: session.totalTime,
       topicBreakdown,
       failedQuestionIds,
-      createdAt: null
+      createdAt: null,
+      config
     };
 
     try {
       const historyId = await saveExamHistory(history);
-      navigate(`/exam/results/${historyId}`, { replace: true, state: { score, grade, ects, correctCount, total: session.questions.length, timeUsed, timeTotal: session.totalTime, topicBreakdown } });
+      navigate(`/exam/results/${historyId}`, { 
+        replace: true, 
+        state: { 
+          ...history,
+          correctCount, 
+          total: session.questions.length, 
+          timeUsed, 
+          timeTotal: session.totalTime, 
+          topicBreakdown 
+        } 
+      });
     } catch (err) {
       console.error(err);
       setIsSubmitting(false);

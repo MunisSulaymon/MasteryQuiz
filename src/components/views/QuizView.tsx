@@ -6,7 +6,11 @@ import {
   Play, 
   Timer, 
   CheckCircle2, 
-  XCircle 
+  XCircle,
+  Trophy,
+  PartyPopper,
+  Home,
+  Sparkles
 } from 'lucide-react';
 import { Question, QuizSession } from '../../types';
 import { shuffleArray } from '../../utils';
@@ -17,9 +21,10 @@ interface QuizViewProps {
   onBack: () => void;
   onUpdateQuestion: (q: Question) => void;
   title?: string;
+  isWeakPack?: boolean;
 }
 
-export default function QuizView({ session, onComplete, onBack, onUpdateQuestion, title }: QuizViewProps) {
+export default function QuizView({ session, onComplete, onBack, onUpdateQuestion, title, isWeakPack }: QuizViewProps) {
   const [questions, setQuestions] = useState<Question[]>(() => [...session.questions]);
   const [currentQueue, setCurrentQueue] = useState<Question[]>([]);
   const [activeQuestion, setActiveQuestion] = useState<Question | null>(null);
@@ -27,6 +32,7 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
   const [timer, setTimer] = useState(20);
   const [rounds, setRounds] = useState(session.rounds || 1);
+  const [isCelebration, setIsCelebration] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const masteredCount = useMemo(() => questions.filter(q => q.box === 3).length, [questions]);
@@ -129,7 +135,11 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
     ];
     
     if (queue.length === 0) {
-      onComplete({ ...session, questions, rounds, endTime: Date.now() });
+      if (isWeakPack) {
+        setIsCelebration(true);
+      } else {
+        onComplete({ ...session, questions, rounds, endTime: Date.now() });
+      }
       return;
     }
 
@@ -165,6 +175,63 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [activeQuestion, feedback, handleAnswer]);
+
+  if (isCelebration) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center">
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="max-w-md w-full bg-slate-800 rounded-[3rem] p-10 border border-slate-700 shadow-2xl relative overflow-hidden"
+        >
+          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 via-indigo-500 to-amber-500" />
+          
+          <div className="w-24 h-24 bg-amber-500 rounded-[2rem] flex items-center justify-center mx-auto mb-8 shadow-xl shadow-amber-500/20">
+            <Trophy className="w-12 h-12 text-white" />
+          </div>
+
+          <h2 className="text-3xl font-black mb-4 italic tracking-tight">Tabriklaymiz!</h2>
+          <p className="text-slate-400 font-bold mb-10 leading-relaxed uppercase tracking-widest text-[10px]">
+            Barcha zaif savollar muvaffaqiyatli o'zlashtirildi. Imtihonga tayyorgarligingiz mukammallashmoqda!
+          </p>
+
+          <button
+            onClick={onBack}
+            className="w-full py-5 bg-white text-slate-900 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl hover:bg-slate-50 transition-all border-b-4 border-slate-200 active:border-b-0 active:translate-y-1"
+          >
+            <Home className="w-5 h-5" />
+            Dashboardga qaytish
+          </button>
+        </motion.div>
+        
+        {/* Confetti simulation with motion */}
+        {[...Array(20)].map((_, i) => (
+          <motion.div
+            key={i}
+            initial={{ 
+              top: '-10%', 
+              left: `${Math.random() * 100}%`,
+              rotate: 0 
+            }}
+            animate={{ 
+              top: '110%',
+              rotate: 360
+            }}
+            transition={{ 
+              duration: Math.random() * 2 + 1, 
+              repeat: Infinity,
+              ease: "linear",
+              delay: Math.random() * 2
+            }}
+            className="fixed w-2 h-4 rounded-full opacity-60 pointer-events-none"
+            style={{ 
+              backgroundColor: ['#F59E0B', '#10B981', '#6366F1', '#EC4899'][Math.floor(Math.random() * 4)] 
+            }}
+          />
+        ))}
+      </div>
+    );
+  }
 
   if (!activeQuestion) return null;
 

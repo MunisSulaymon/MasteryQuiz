@@ -449,6 +449,19 @@ function AppContent() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [user, handleRefresh]);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const weakPackId = params.get('weak');
+    if (weakPackId && packs.length > 0) {
+      const pack = packs.find(p => p.id === weakPackId);
+      if (pack) {
+        handleSelectPack(pack);
+        // Clear param after handling to avoid re-triggering?
+        // Actually it's fine if we stay in that view.
+      }
+    }
+  }, [location.search, packs.length]);
+
   const WelcomeSyncBanner = () => {
     if (user || bannerDismissed) return null;
     return (
@@ -694,6 +707,7 @@ function AppContent() {
                       onBack={() => setView(view === 'quiz' ? 'selection' : 'summary')}
                       onUpdateQuestion={handleUpdateQuestion}
                       title={view === 'drill' ? "Weakness Drill" : undefined}
+                      isWeakPack={activePack?.isWeakPack}
                     />
                   </motion.div>
                 )}

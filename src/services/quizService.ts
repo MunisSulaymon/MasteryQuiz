@@ -8,6 +8,7 @@ import {
   writeBatch,
   deleteDoc,
   query,
+  where,
   orderBy
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
@@ -47,8 +48,19 @@ export function loadFromLocal(userId: string, suffix: string) {
 }
 
 export async function createPack(pack: Partial<QuizPack>) {
-  const packId = pack.id || Math.random().toString(36).substring(2, 11);
   const userId = auth?.currentUser?.uid;
+  if (db && userId) {
+    const packsPath = `users/${userId}/packs`;
+    try {
+      const qSnap = await getDocs(query(collection(db, packsPath), where('name', '==', pack.name)));
+      if (!qSnap.empty) {
+        // Return existing pack ID if name matches (for weak packs)
+        return qSnap.docs[0].id;
+      }
+    } catch (e) {}
+  }
+
+  const packId = pack.id || Math.random().toString(36).substring(2, 11);
   const newPack = {
     ...pack,
     id: packId,
@@ -423,6 +435,43 @@ export async function syncGuestDataToFirestore() {
   }
 }
 
+export async function createWeakPack(examId: string, name: string, questions: any[]) {
+  const userId = auth?.currentUser?.uid;
+  
+  // Create the pack structure
+  const packData: Partial<QuizPack> = {
+    name,
+    color: 'amber',
+    isWeakPack: true,
+    originalExamId: examId,
+    questionCount: questions.length,
+    setSize: Math.min(20, questions.length || 20),
+    lastStudied: Date.now(),
+    createdAt: Date.now(),
+    deleteAt: Date.now() + (7 * 24 * 60 * 60 * 1000), // Auto-delete in 7 days
+    inputText: questions.map(q => `${q.text}\n====\n${q.options.map((opt: string, i: number) => i === q.correctIndex ? '#' + opt : opt).join('\n====\n')}`).join('\n++++\n')
+  };
+
+  const packId = await createPack(packData);
+  
+  // Convert ExamQuestion format to Question format for study mode if needed
+  // However, createPack already handles the inputText. 
+  // We should also sync the session data to ensure they start in Box 1
+  const studyQuestions = questions.map(q => ({
+    id: Math.random().toString(36).substring(2, 9),
+    stem: q.text,
+    options: q.options,
+    correctAnswer: q.options[q.correctIndex],
+    box: 1 as 1,
+    wrongCount: 0
+  }));
+
+  // Not strictly needed as Study Mode will parse the inputText on first load,
+  // but good for immediate state.
+  
+  return packId;
+}
+
 export async function saveExamQuestions(packId: string, questions: ExamQuestion[]) {
   const userId = auth?.currentUser?.uid;
   
@@ -543,6 +592,40 @@ export async function loadHistoryItem(id: string): Promise<ExamHistory | null> {
     } as unknown as ExamHistory;
   } catch (error) {
     console.error("Failed to load history item:", error);
+    return null;
+  }
+}
+
+export async function getQuestionsByIds(packId: string, ids: string[]): Promise<ExamQuestion[]> {
+  const userId = auth?.currentUser?.uid;
+  if (!userId || !db) {
+    const all = localStore.getQuestions(packId);
+    return all.filter(q => q.id && ids.includes(q.id));
+  }
+
+  try {
+    const qSnap = await getDocs(collection(db, `users/${userId}/packs/${packId}/questions`));
+    return qSnap.docs
+      .map(d => ({ ...d.data(), id: d.id } as ExamQuestion))
+      .filter(q => ids.includes(q.id!));
+  } catch (e) {
+    return [];
+  }
+}
+
+export async function findWeakPackByExamId(examId: string): Promise<QuizPack | null> {
+  const userId = auth?.currentUser?.uid;
+  if (!userId || !db) {
+    const packs = localStore.getPacks();
+    return packs.find(p => p.originalExamId === examId) || null;
+  }
+
+  try {
+    const q = query(collection(db, `users/${userId}/packs`), where('originalExamId', '==', examId));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    return { ...snap.docs[0].data(), id: snap.docs[0].id } as QuizPack;
+  } catch (e) {
     return null;
   }
 }

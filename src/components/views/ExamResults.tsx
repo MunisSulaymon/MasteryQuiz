@@ -1,18 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
-import { 
-  Trophy, 
-  ArrowLeft, 
-  BookOpen, 
-  LayoutGrid, 
-  ChevronRight,
-  Loader2,
-  AlertTriangle,
-  Clock,
-  Target
-} from 'lucide-react';
+import { Trophy, ArrowLeft, BookOpen, LayoutGrid, ChevronRight, Loader2, AlertTriangle, Clock, Target, RotateCcw, Brain, CheckCircle, RefreshCcw, XCircle } from 'lucide-react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { loadHistoryItem } from '../../services/quizService';
+import { loadHistoryItem, createWeakPack, getQuestionsByIds, findWeakPackByExamId, updatePack, deletePack } from '../../services/quizService';
 import { ExamHistory } from '../../types';
 
 export default function ExamResults() {
@@ -21,6 +11,9 @@ export default function ExamResults() {
   const location = useLocation();
   const [history, setHistory] = useState<ExamHistory | null>(location.state || null);
   const [isLoading, setIsLoading] = useState(!location.state);
+  const [isCreatingWeak, setIsCreatingWeak] = useState(false);
+  const [showToast, setShowToast] = useState<string | null>(null);
+  const [showConfirmUpdate, setShowConfirmUpdate] = useState(false);
 
   useEffect(() => {
     if (!history && historyId) {
@@ -45,6 +38,68 @@ export default function ExamResults() {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  const handleStudyWeak = async (forceUpdate = false) => {
+    if (!history) return;
+    
+    // Check if already exists unless forcing update
+    if (!forceUpdate) {
+      const existing = await findWeakPackByExamId(historyId!);
+      if (existing) {
+        setShowConfirmUpdate(true);
+        return;
+      }
+    }
+
+    setIsCreatingWeak(true);
+    try {
+      if (forceUpdate) {
+        // Find and delete the old one first to avoid duplicates
+        const existing = await findWeakPackByExamId(historyId!);
+        if (existing) {
+          await deletePack(existing.id);
+        }
+      }
+
+      const dateStr = new Date(history.createdAt || Date.now()).toLocaleDateString('uz-UZ');
+      const packName = `Imtihon zaif savollari — ${dateStr}`;
+      
+      const failedQuestions = await getQuestionsByIds(history.packId, history.failedQuestionIds);
+      
+      if (failedQuestions.length === 0) {
+        alert("Hamma savollarga to'g'ri javob berilgan! Zaif savollar yo'q.");
+        setIsCreatingWeak(false);
+        return;
+      }
+
+      const weakPackId = await createWeakPack(historyId!, packName, failedQuestions);
+      
+      setShowToast(`✅ ${failedQuestions.length} ta zaif savol O'rganish platformasiga qo'shildi!`);
+      setTimeout(() => {
+        navigate(`/study?weak=${weakPackId}`);
+      }, 2000);
+    } catch (err) {
+      console.error(err);
+      alert("Xatolik yuz berdi. Iltimos qaytadan urinib ko'ring.");
+    } finally {
+      setIsCreatingWeak(false);
+      setShowConfirmUpdate(false);
+    }
+  };
+
+  const handleRetry = () => {
+    if (!history || !history.config) return;
+    const params = new URLSearchParams({
+      packId: history.packId,
+      type: history.examType,
+      count: history.config.questionCount.toString(),
+      time: history.config.timeLimit.toString(),
+      oson: history.config.difficulties.oson.toString(),
+      orta: history.config.difficulties.orta.toString(),
+      qiyin: history.config.difficulties.qiyin.toString()
+    });
+    navigate(`/exam/start?${params.toString()}`);
   };
 
   if (isLoading) {
@@ -132,7 +187,8 @@ export default function ExamResults() {
            <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 px-2">Mavzular bo'yicha tahlil</h3>
            <div className="space-y-2">
              {Object.entries(history.topicBreakdown).map(([topic, data]) => {
-               const percentage = Math.round((data.correct / data.total) * 100);
+               const typedData = data as { correct: number; total: number };
+               const percentage = Math.round((typedData.correct / typedData.total) * 100);
                return (
                  <div key={topic} className="bg-white p-6 rounded-3xl border border-gray-100 group hover:border-emerald-100 transition-colors">
                     <div className="flex items-center justify-between mb-4">
@@ -158,7 +214,7 @@ export default function ExamResults() {
                     </div>
                     <div className="mt-3 flex justify-between items-center">
                        <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">
-                         {data.correct} ta to'g'ri / {data.total} ta savol
+                         {typedData.correct} ta to'g'ri / {typedData.total} ta savol
                        </p>
                        {percentage < 70 && (
                          <button 
@@ -178,6 +234,34 @@ export default function ExamResults() {
 
         {/* Action Buttons */}
         <div className="space-y-4 pt-4">
+           {history.failedQuestionIds.length > 0 && (
+             <button 
+               onClick={() => handleStudyWeak()}
+               disabled={isCreatingWeak}
+               className="w-full py-5 bg-amber-500 text-white rounded-[2rem] font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-2xl shadow-amber-100 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
+             >
+               {isCreatingWeak ? (
+                 <>
+                   <Loader2 className="w-4 h-4 animate-spin" />
+                   Zaif savollar to'plami yaratilmoqda...
+                 </>
+               ) : (
+                 <>
+                   <Brain className="w-4 h-4" />
+                   Zaif tomonlarni o'rganish
+                 </>
+               )}
+             </button>
+           )}
+
+           <button 
+             onClick={handleRetry}
+             className="w-full py-5 bg-emerald-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-2xl shadow-emerald-100 hover:scale-[1.02] active:scale-95 transition-all"
+           >
+             <RotateCcw className="w-4 h-4" />
+             Qayta urinish
+           </button>
+
            <button 
              onClick={() => navigate('/exam')}
              className="w-full py-5 bg-gray-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-2xl shadow-gray-300 hover:scale-[1.02] active:scale-95 transition-all"
@@ -204,6 +288,48 @@ export default function ExamResults() {
            </div>
         </div>
       </main>
+
+      {/* Confirmation Modal */}
+      {showConfirmUpdate && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl"
+          >
+            <div className="w-16 h-16 bg-amber-50 rounded-2xl flex items-center justify-center text-amber-600 mb-6 font-black text-2xl">
+              !
+            </div>
+            <h2 className="text-xl font-black text-gray-900 mb-4 italic">To'plam mavjud</h2>
+            <p className="text-sm font-bold text-gray-400 mb-8 italic">
+              Sizda ushbu imtihon uchun zaif savollar to'plami allaqachon mavjud. Yangilashni xohlaysizmi?
+            </p>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowConfirmUpdate(false)}
+                className="flex-1 py-4 text-gray-400 font-black uppercase tracking-widest text-[10px]"
+              >
+                Bekor qilish
+              </button>
+              <button 
+                onClick={() => handleStudyWeak(true)}
+                className="flex-1 py-4 bg-amber-500 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-lg shadow-amber-100 flex items-center justify-center gap-2"
+              >
+                Yangilash
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {showToast && (
+        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] bg-gray-900/90 backdrop-blur-md text-white px-8 py-4 rounded-3xl shadow-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 border border-white/10">
+          <CheckCircle className="w-5 h-5 text-emerald-400" />
+          {showToast}
+        </div>
+      )}
     </div>
   );
 }

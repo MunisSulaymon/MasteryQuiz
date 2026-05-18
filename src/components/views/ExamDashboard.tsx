@@ -18,13 +18,18 @@ import {
   Layers,
   Clock,
   Info,
-  Cloud
+  Cloud,
+  History,
+  TrendingUp,
+  Target,
+  ChevronRight,
+  RotateCcw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { User } from 'firebase/auth';
-import { QuizPack, ExamQuestion } from '../../types';
+import { QuizPack, ExamQuestion, ExamHistory } from '../../types';
 import { parseHemisFormat, HemisParsedQuestion } from '../../utils/hemisParser';
-import { createPack, loadUserData, saveExamQuestions, loadExamQuestions } from '../../services/quizService';
+import { createPack, loadUserData, saveExamQuestions, loadExamQuestions, loadExamHistory } from '../../services/quizService';
 
 interface ExamDashboardProps {
   user: User | null;
@@ -33,12 +38,14 @@ interface ExamDashboardProps {
 
 export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam'>('questions');
+  const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam' | 'history'>('questions');
   const [packs, setPacks] = useState<QuizPack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string>('');
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
+  const [history, setHistory] = useState<ExamHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPacksLoading, setIsPacksLoading] = useState(true);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   // Exam Config States
   const [examType, setExamType] = useState<'joriy' | 'oraliq' | 'yakuniy' | 'custom'>('yakuniy');
@@ -100,6 +107,9 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
     if (selectedPackId && activeTab === 'questions') {
       fetchQuestions();
     }
+    if (activeTab === 'history') {
+      fetchHistory();
+    }
   }, [selectedPackId, activeTab]);
 
   const fetchPacks = async () => {
@@ -128,6 +138,18 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
       console.error(err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchHistory = async () => {
+    setIsHistoryLoading(true);
+    try {
+      const data = await loadExamHistory();
+      setHistory(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsHistoryLoading(false);
     }
   };
 
@@ -305,6 +327,12 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
             Imtihon
           </button>
           <button 
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'history' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Natijalar
+          </button>
+          <button 
             onClick={() => setActiveTab('import')}
             className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'import' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
@@ -390,6 +418,131 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
                   className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
                 >
                   Import qilish
+                </button>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'history' ? (
+          <div className="space-y-6">
+            {isHistoryLoading ? (
+               <div className="flex flex-col items-center justify-center py-24 gap-4">
+                  <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" />
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Yuklanmoqda...</p>
+               </div>
+            ) : history.length > 0 ? (
+              <>
+                {/* Stats Summary */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                   <div className="bg-white p-6 rounded-3xl border border-gray-100 flex flex-col gap-1">
+                      <History className="w-5 h-5 text-gray-400 mb-2" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Jami imtihonlar</span>
+                      <span className="text-xl font-black text-gray-900">{history.length} ta</span>
+                   </div>
+                   <div className="bg-white p-6 rounded-3xl border border-gray-100 flex flex-col gap-1">
+                      <Target className="w-5 h-5 text-emerald-500 mb-2" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">O'rtacha natija</span>
+                      <span className="text-xl font-black text-gray-900">
+                        {history.length > 0 ? Math.round(history.reduce((acc, h) => acc + h.score, 0) / history.length) : 0}%
+                      </span>
+                   </div>
+                   <div className="bg-white p-6 rounded-3xl border border-gray-100 flex flex-col gap-1">
+                      <CheckCircle2 className="w-5 h-5 text-indigo-500 mb-2" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Eng yaxshi baho</span>
+                      <span className="text-xl font-black text-gray-900">
+                        {history.length > 0 ? history.sort((a,b) => b.score - a.score)[0].ects : '—'}
+                      </span>
+                   </div>
+                   <div className="bg-white p-6 rounded-3xl border border-gray-100 flex flex-col gap-1">
+                      <TrendingUp className="w-5 h-5 text-amber-500 mb-2" />
+                      <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">O'sish dinamikasi</span>
+                      <span className="text-xl font-black text-gray-900">
+                        {history.length > 1 ? (history[0].score >= history[history.length - 1].score ? '📈 Ijobiy' : '📉 Pasayish') : '—'}
+                      </span>
+                   </div>
+                </div>
+
+                {/* History List */}
+                <div className="space-y-4">
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-2">Oxirgi natijalar</h3>
+                  {history.map((h) => (
+                    <motion.div 
+                      key={h.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:border-emerald-200 transition-colors flex items-center justify-between gap-4"
+                    >
+                      <div className="flex items-center gap-6">
+                        <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center font-black italic tracking-tighter ${
+                          h.score >= 70 ? 'bg-emerald-50 text-emerald-600' :
+                          h.score >= 55 ? 'bg-amber-50 text-amber-600' :
+                          'bg-rose-50 text-rose-600'
+                        }`}>
+                          <span className="text-xl leading-none">{h.ects}</span>
+                          <span className="text-[8px] uppercase tracking-widest not-italic">{h.score}%</span>
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">{h.examType} nazorat</span>
+                            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">
+                              {new Date(h.createdAt).toLocaleDateString()} · {new Date(h.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <h4 className="font-bold text-gray-800">
+                             {packs.find(p => p.id === h.packId)?.name || 'To\'plam nomi' }
+                          </h4>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                             <Clock className="w-3 h-3" />
+                             {Math.floor(h.timeUsed / 60)}:{ (h.timeUsed % 60).toString().padStart(2, '0') } ishlatildi
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button 
+                          onClick={() => {
+                             if (!h.config) {
+                               alert("Ushbu imtihon uchun konfiguratsiya topilmadi.");
+                               return;
+                             }
+                             const params = new URLSearchParams({
+                               packId: h.packId,
+                               type: h.examType,
+                               count: h.config.questionCount.toString(),
+                               time: h.config.timeLimit.toString(),
+                               oson: h.config.difficulties.oson.toString(),
+                               orta: h.config.difficulties.orta.toString(),
+                               qiyin: h.config.difficulties.qiyin.toString()
+                             });
+                             navigate(`/exam/start?${params.toString()}`);
+                          }}
+                          className="w-10 h-10 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-600 transition-all group"
+                          title="Qayta urinish"
+                        >
+                          <RotateCcw className="w-4 h-4 group-hover:rotate-180 transition-transform" />
+                        </button>
+                        <button 
+                          onClick={() => navigate(`/exam/results/${h.id}`, { state: h })}
+                          className="px-6 py-3 bg-gray-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-colors flex items-center gap-2"
+                        >
+                          Batafsil
+                          <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="bg-white border-2 border-dashed border-gray-200 rounded-[2.5rem] py-20 flex flex-col items-center text-center px-8">
+                <div className="w-20 h-20 bg-gray-50 rounded-3xl flex items-center justify-center text-gray-300 mb-6">
+                  <History className="w-10 h-10" />
+                </div>
+                <h3 className="text-lg font-black text-gray-900 mb-2">Imtihon topshirilmadi</h3>
+                <p className="text-gray-400 text-sm max-w-xs mb-8 font-medium italic">Hali imtihon topshirmagansiz. Imtihon tabiga o'tib, birinchi imtihoningizni boshlang!</p>
+                <button 
+                  onClick={() => setActiveTab('exam')}
+                  className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-100"
+                >
+                  Imtihonni boshlash
                 </button>
               </div>
             )}
