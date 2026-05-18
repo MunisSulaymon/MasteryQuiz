@@ -252,27 +252,27 @@ export default function ExamScreen({ user }: ExamScreenProps) {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 max-w-2xl mx-auto w-full px-6 py-8">
+      <main className="flex-1 max-w-2xl mx-auto w-full px-6 py-4">
         <AnimatePresence mode="wait">
           <motion.div
             key={currentIndex}
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
-            className="space-y-8"
+            className="space-y-4"
           >
-            <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
-               <h2 className="text-lg font-bold text-gray-900 leading-relaxed text-center">
+            <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100">
+               <h2 className="text-base sm:text-lg font-bold text-gray-900 leading-relaxed text-center">
                  {currentQuestion.text}
                </h2>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2">
               {currentQuestion.options.map((opt, i) => (
                 <button
                   key={i}
                   onClick={() => handleSelectOption(i)}
-                  className={`w-full p-6 rounded-3xl text-left transition-all border-2 flex items-center gap-4 ${
+                  className={`w-full p-4 rounded-3xl text-left transition-all border-2 flex items-center gap-3 ${
                     session.answers[currentIndex] === i 
                     ? 'border-emerald-500 bg-emerald-50/50 shadow-lg shadow-emerald-100' 
                     : 'border-white bg-white hover:border-gray-100'
@@ -283,7 +283,7 @@ export default function ExamScreen({ user }: ExamScreenProps) {
                   }`}>
                     {String.fromCharCode(65 + i)}
                   </div>
-                  <span className={`text-sm font-bold ${session.answers[currentIndex] === i ? 'text-emerald-900' : 'text-gray-600'}`}>
+                  <span className={`text-xs sm:text-sm font-bold ${session.answers[currentIndex] === i ? 'text-emerald-900' : 'text-gray-600'}`}>
                     {opt}
                   </span>
                 </button>
@@ -294,37 +294,45 @@ export default function ExamScreen({ user }: ExamScreenProps) {
       </main>
 
       {/* Navigation & Actions */}
-      <footer className="bg-white border-t border-gray-100 p-6 sticky bottom-0">
-         <div className="max-w-4xl mx-auto flex flex-col gap-6">
-            <div className="flex items-center justify-between gap-4">
+      <footer className="bg-white border-t border-gray-100 p-4 sticky bottom-0">
+         <div className="max-w-4xl mx-auto flex flex-col gap-3">
+            <div className="flex items-center justify-between gap-2">
               <button 
                 onClick={() => setCurrentIndex(prev => Math.max(0, prev - 1))}
                 disabled={currentIndex === 0}
-                className="flex-1 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 disabled:opacity-30"
+                className="flex-[2] py-4 bg-gray-50 text-gray-400 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 disabled:opacity-30"
               >
                 <ChevronLeft className="w-4 h-4" />
-                Oldingi
+                <span className="hidden xs:inline">Oldingi</span>
               </button>
               <button 
                 onClick={toggleFlag}
-                className={`flex-1 py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 border transition-all ${
+                className={`flex-[2] py-4 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 border transition-all ${
                   session.flags[currentIndex] ? 'bg-amber-600 border-amber-600 text-white' : 'bg-white border-gray-200 text-gray-400'
                 }`}
               >
                 <Flag className={`w-4 h-4 ${session.flags[currentIndex] ? 'fill-white' : ''}`} />
-                Belgilash
+                <span className="hidden xs:inline">Belgilash</span>
               </button>
               <button 
                 onClick={() => setCurrentIndex(prev => Math.min(session.questions.length - 1, prev + 1))}
                 disabled={currentIndex === session.questions.length - 1}
-                className="flex-1 py-4 bg-gray-900 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 disabled:opacity-30"
+                className="flex-[2] py-4 bg-gray-900 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 disabled:opacity-30"
               >
-                Keyingi
+                <span className="hidden xs:inline">Keyingi</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
+              
+              <button 
+                 onClick={() => setShowConfirmSubmit(true)}
+                 className="flex-[3] py-4 bg-rose-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-rose-100 hover:bg-rose-700 transition-colors"
+               >
+                 <Send className="w-4 h-4" />
+                 Yakunlash
+               </button>
             </div>
 
-            <div className="flex items-center gap-4 overflow-x-auto pb-2 scrollbar-hide">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
               {session.questions.map((_, i) => (
                 <button
                   key={i}
@@ -339,16 +347,6 @@ export default function ExamScreen({ user }: ExamScreenProps) {
                   {i + 1}
                 </button>
               ))}
-            </div>
-
-            <div className="flex justify-end">
-               <button 
-                 onClick={() => setShowConfirmSubmit(true)}
-                 className="px-8 py-4 bg-rose-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 shadow-lg shadow-rose-100 hover:bg-rose-700 transition-colors"
-               >
-                 <Send className="w-4 h-4" />
-                 Yakunlash
-               </button>
             </div>
          </div>
       </footer>

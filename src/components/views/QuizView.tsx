@@ -280,7 +280,7 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center overflow-y-auto p-4 md:p-6 pb-20">
+      <div className="flex-1 flex flex-col items-center overflow-y-auto p-4 md:p-6 pb-12">
         <div className="max-w-4xl w-full">
            <AnimatePresence mode="wait">
               <motion.div 
@@ -288,9 +288,9 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -20 }}
-                className="mb-6 md:mb-10 pt-4"
+                className="mb-4 md:mb-6 pt-2"
               >
-                <div className="flex items-center gap-3 mb-2 md:mb-6 font-bold uppercase tracking-widest text-[9px] md:text-sm text-left">
+                <div className="flex items-center gap-3 mb-1 md:mb-4 font-bold uppercase tracking-widest text-[9px] md:text-sm text-left">
                   <span className="px-2 py-0.5 border border-indigo-400/30 rounded text-indigo-400">Box {activeQuestion.box}</span>
                   <span className="text-slate-400">Question</span>
                 </div>
@@ -302,7 +302,7 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
               </motion.div>
            </AnimatePresence>
 
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4">
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3">
               {shuffledOptions.map((opt, idx) => {
                 const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
                 const isCorrect = opt === activeQuestion.correctAnswer;
@@ -325,15 +325,15 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
                     key={opt}
                     onClick={() => handleAnswer(opt)}
                     disabled={!!feedback}
-                    className={`group relative p-3 md:p-5 text-left rounded-xl md:rounded-2xl border-2 transition-all flex items-center gap-3 md:gap-5 ${btnClass} active:scale-[0.98]`}
+                    className={`group relative p-2 md:p-4 text-left rounded-xl md:rounded-2xl border-2 transition-all flex items-center gap-3 md:gap-4 ${btnClass} active:scale-[0.98]`}
                   >
-                    <span className="flex-shrink-0 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-white/10 rounded-lg md:rounded-xl font-black text-xs md:text-lg group-hover:bg-white/20 transition-colors">
+                    <span className="flex-shrink-0 w-8 h-8 md:w-9 md:h-9 flex items-center justify-center bg-white/10 rounded-lg md:rounded-xl font-black text-xs md:text-base group-hover:bg-white/20 transition-colors">
                       {extractedLabel || letters[idx] || (idx + 1)}
                     </span>
-                    <span className="text-sm md:text-xl font-bold leading-tight break-words flex-1 pr-6">{displayOpt}</span>
+                    <span className="text-sm md:text-lg font-bold leading-tight break-words flex-1 pr-6">{displayOpt}</span>
                     
-                    {feedback && isCorrect && <CheckCircle2 className="flex-shrink-0 w-5 h-5 md:w-8 md:h-8 text-emerald-500" />}
-                    {feedback === 'wrong' && !isCorrect && <XCircle className="flex-shrink-0 w-5 h-5 md:w-8 md:h-8 text-red-500 opacity-30" />}
+                    {feedback && isCorrect && <CheckCircle2 className="flex-shrink-0 w-5 h-5 md:w-6 md:h-6 text-emerald-500" />}
+                    {feedback === 'wrong' && !isCorrect && <XCircle className="flex-shrink-0 w-5 h-5 md:w-6 md:h-6 text-red-500 opacity-30" />}
                   </motion.button>
                 );
               })}
