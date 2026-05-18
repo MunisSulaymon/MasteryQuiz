@@ -34,13 +34,20 @@ async function startServer() {
 
     try {
       console.log("Generating questions for text length:", text.length);
+      const startTime = Date.now();
+      
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Quyidagi matndan ${count} ta test savoli yaratib ber. Savollar O'zbek tilida bo'lsin.
-        Har bir savol variantlari va to'g'ri javob indeksi bilan bo'lishi shart.
-        
-        Matn:
-        ${text}`,
+        model: "gemini-1.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: `Quyidagi matndan ${count} ta test savoli yaratib ber. Savollar O'zbek tilida bo'lsin.
+            Har bir savol variantlari va to'g'ri javob indeksi bilan bo'lishi shart.
+            
+            Matn:
+            ${text}` }]
+          }
+        ],
         config: {
           responseMimeType: "application/json",
           responseSchema: {
@@ -69,9 +76,23 @@ async function startServer() {
         }
       });
 
-      const responseText = response.text || "{}";
-      console.log("Raw Response:", responseText.substring(0, 500) + "...");
-      const data = JSON.parse(responseText);
+      console.log(`Gemini responded in ${Date.now() - startTime}ms`);
+      const responseText = response.text;
+      
+      if (!responseText) {
+        console.error("Gemini response is empty. Full response:", JSON.stringify(response, null, 2));
+        return res.status(500).json({ error: "AI javobi bo'sh keldi. Iltimos qaytadan urinib ko'ring." });
+      }
+
+      console.log("Raw Response Preview:", responseText.substring(0, 500) + "...");
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonErr) {
+        console.error("Failed to parse Gemini response as JSON:", responseText);
+        return res.status(500).json({ error: "AI javobini o'qib bo'lmadi (JSON error). Qayta urinib ko'ring." });
+      }
       
       // Calculate summary
       const difficultyCounts = { oson: 0, orta: 0, qiyin: 0 };
