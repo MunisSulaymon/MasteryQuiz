@@ -2,11 +2,13 @@ import express from "express";
 import path from "path";
 import cors from "cors";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import crypto from "crypto";
 import dotenv from "dotenv";
 
 dotenv.config();
+
+const GEMINI_KEY = process.env.GEMINI_API_KEY;
 
 async function startServer() {
   const app = express();
@@ -15,14 +17,9 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  const ai = new GoogleGenAI({
-    apiKey: process.env.GEMINI_API_KEY,
-    httpOptions: {
-      headers: {
-        'User-Agent': 'aistudio-build',
-      }
-    }
-  });
+  console.log("Gemini API Key status:", GEMINI_KEY ? `Exists (starts with ${GEMINI_KEY.substring(0, 4)})` : "MISSING");
+
+  const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
 
   app.use((req, res, next) => {
     console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
@@ -30,6 +27,10 @@ async function startServer() {
   });
 
   // API Routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", keyExists: !!GEMINI_KEY });
+  });
+
   app.get("/api/generate-questions", (req, res) => {
     res.status(405).json({ error: "Bu endpoint faqat POST so'rovlarini qabul qiladi." });
   });
@@ -38,84 +39,85 @@ async function startServer() {
     const { text, count = 15 } = req.body;
     console.log(`Received POST /api/generate-questions - Count: ${count}, Text length: ${text?.length}`);
 
-    if (!text || text.length < 100) {
+    if (!GEMINI_KEY || !genAI) {
+      console.error("Gemini API Key is missing");
+      return res.status(500).json({ error: "Gemini API kaliti topilmadi yoki noto'g'ri. Iltimos administrator bilan bog'laning." });
+    }
+
+    if (!text || text.length < 10) { // Lowered for debugging
       return res.status(400).json({ error: "Matn juda qisqa. Kamida 100 ta belgi kerak." });
     }
 
     try {
-      console.log("Generating questions for text length:", text.length);
-      const startTime = Date.now();
+      console.log("Generating questions using gemini-1.5-flash...");
+      let startTime = Date.now();
       
-      const response = await ai.models.generateContent({
+      let model = genAI.getGenerativeModel({ 
         model: "gemini-1.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: `Quyidagi matndan ${count} ta test savoli yaratib ber. Savollar O'zbek tilida bo'lsin.
-            Har bir savol variantlari va to'g'ri javob indeksi bilan bo'lishi shart.
-            
-            Matn:
-            ${text}` }]
-          }
-        ],
-        config: {
+        generationConfig: {
           responseMimeType: "application/json",
-          maxOutputTokens: 8192,
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              questions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    text: { type: Type.STRING },
-                    options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    correctIndex: { type: Type.INTEGER },
-                    difficulty: { type: Type.STRING, enum: ["oson", "orta", "qiyin"] },
-                    bloomsLevel: { type: Type.STRING, enum: ["Remember", "Understand", "Apply", "Analyze"] },
-                    topic: { type: Type.STRING },
-                    confidenceScore: { type: Type.NUMBER },
-                    sourceReference: { type: Type.STRING }
-                  },
-                  required: ["text", "options", "correctIndex", "difficulty", "bloomsLevel", "topic"]
-                }
-              }
-            },
-            required: ["questions"]
-          }
         }
       });
 
+      const prompt = `Quyidagi matndan ${count} ta test savoli yaratib ber. Savollar O'zbek tilida bo'lsin.
+      Har bir savol variantlari va to'g'ri javob indeksi bilan bo'lishi shart.
+      
+      JSON formatida qaytar:
+      {
+        "questions": [
+          {
+            "text": "savol matni",
+            "options": ["variant A", "variant B", "variant C", "variant D"],
+            "correctIndex": 0,
+            "difficulty": "oson" | "orta" | "qiyin",
+            "bloomsLevel": "Remember" | "Understand" | "Apply" | "Analyze",
+            "topic": "mavzu nomi",
+            "confidenceScore": 85,
+            "sourceReference": "matndan olingan qisqa parcha"
+          }
+        ]
+      }
+
+      Matn:
+      ${text}`;
+
+      let result;
+      try {
+        result = await model.generateContent(prompt);
+      } catch (flashErr) {
+        console.warn("Gemini 1.5 Flash failed, trying Pro fallback...", flashErr);
+        model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+        result = await model.generateContent(prompt);
+      }
+
+      const response = await result.response;
+      const responseText = response.text();
+
       console.log(`Gemini responded in ${Date.now() - startTime}ms`);
       
-      const responseText = response.text || '';
-      
-      if (!responseText) {
-        console.error("Gemini response is empty. Response object:", JSON.stringify(response, null, 2));
-        // Check if there are safety notice or other reasons
-        const safetyDetails = response.candidates?.[0]?.finishReason;
-        return res.status(500).json({ 
-          error: "AI javob bermadi. Iltimos matnni qisqartirib yoki o'zgartirib ko'ring.",
-          details: safetyDetails 
-        });
+      if (!responseText || responseText.trim().length === 0) {
+        console.error("Gemini response text is empty. Full response candidate:", JSON.stringify(response.candidates?.[0], null, 2));
+        return res.status(500).json({ error: "AI javob bermadi (Javob matni bo'sh). Iltimos qaytadan urinib ko'ring." });
       }
 
       console.log("Raw Response Preview:", responseText.substring(0, 500) + "...");
       
       let data;
       try {
-        // Fallback for markdown blocks if they somehow appear
         const cleanedText = responseText.replace(/```json\n?|```/g, '').trim();
         data = JSON.parse(cleanedText);
       } catch (jsonErr) {
         console.error("Failed to parse Gemini response as JSON:", responseText);
-        return res.status(500).json({ error: "AI javobini o'qib bo'lmadi (JSON error). Qayta urinib ko'ring." });
+        return res.status(500).json({ error: "AI javobini o'qib bo'lmadi (JSON format xatosi). Qayta urinib ko'ring." });
       }
       
+      const questions = data.questions || [];
+      if (questions.length === 0) {
+        return res.status(500).json({ error: "AI savol yarata olmadi. Iltimos matnni o'zgartirib ko'ring." });
+      }
+
       // Calculate summary
       const difficultyCounts = { oson: 0, orta: 0, qiyin: 0 };
-      const questions = data.questions || [];
       questions.forEach((q: any) => {
         if (q.difficulty in difficultyCounts) {
           difficultyCounts[q.difficulty as keyof typeof difficultyCounts]++;
@@ -131,11 +133,20 @@ async function startServer() {
       });
     } catch (err: any) {
       console.error("Gemini Error:", err);
-      if (err.message?.includes("quota")) {
-        res.status(429).json({ error: "Kunlik limit tugadi. Ertaga yana urinib ko'ring yoki Premium tarifga o'ting." });
-      } else {
-        res.status(500).json({ error: "Xatolik yuz berdi. Qayta urinib ko'ring." });
+      const errorMessage = err.message || "Xatolik yuz berdi.";
+      
+      if (errorMessage.includes("quota")) {
+        return res.status(429).json({ error: "Kunlik limit tugadi. Ertaga yana urinib ko'ring." });
       }
+      
+      if (errorMessage.includes("API key not valid")) {
+        return res.status(500).json({ error: "Gemini API kaliti noto'g'ri. Administrator bilan bog'laning." });
+      }
+
+      res.status(500).json({ 
+        error: "AI Generation xatosi: " + errorMessage,
+        details: err.toString()
+      });
     }
   });
 

@@ -84,8 +84,14 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
         try {
           errorData = JSON.parse(text);
         } catch (e) {
-          throw new Error(`Server xatosi (${response.status}): ${text.substring(0, 100) || 'Bo\'sh javob'}`);
+          throw new Error(`Server xatosi (${response.status}): ${text.substring(0, 100) || 'Bo\'sh xabar'}`);
         }
+        
+        const internalError = errorData.error || "";
+        if (internalError.toLowerCase().includes("api key") || internalError.toLowerCase().includes("kalit")) {
+          throw new Error("API kaliti muammosi. Iltimos administrator bilan bog'laning yoki sozlamalardan kalitni tekshiring.");
+        }
+        
         throw new Error(errorData.error || `Sorov muvaffaqiyatsiz tugadi (${response.status})`);
       }
 
