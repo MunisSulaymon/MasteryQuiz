@@ -68,6 +68,7 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
     setIsGenerating(true);
     setError(null);
     try {
+      console.log("Calling /api/generate-questions with count:", questionCount);
       const response = await fetch('/api/generate-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -75,13 +76,15 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
       });
 
       const text = await response.text();
+      console.log("API Response status:", response.status);
       
       if (!response.ok) {
+        console.error("API Error Response:", text);
         let errorData;
         try {
           errorData = JSON.parse(text);
         } catch (e) {
-          throw new Error(`Server xatosi (${response.status}): ${text.substring(0, 50) || 'Ma\'lumot yo\'q'}`);
+          throw new Error(`Server xatosi (${response.status}): ${text.substring(0, 100) || 'Bo\'sh javob'}`);
         }
         throw new Error(errorData.error || `Sorov muvaffaqiyatsiz tugadi (${response.status})`);
       }
@@ -116,6 +119,7 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
         timestamp: Date.now()
       }));
     } catch (err: any) {
+      console.error("API call failed:", err);
       setError(err.message);
     } finally {
       setIsGenerating(false);

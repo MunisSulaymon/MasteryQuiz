@@ -24,9 +24,19 @@ async function startServer() {
     }
   });
 
+  app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    next();
+  });
+
   // API Routes
+  app.get("/api/generate-questions", (req, res) => {
+    res.status(405).json({ error: "Bu endpoint faqat POST so'rovlarini qabul qiladi." });
+  });
+
   app.post("/api/generate-questions", async (req, res) => {
     const { text, count = 15 } = req.body;
+    console.log(`Received POST /api/generate-questions - Count: ${count}, Text length: ${text?.length}`);
 
     if (!text || text.length < 100) {
       return res.status(400).json({ error: "Matn juda qisqa. Kamida 100 ta belgi kerak." });
@@ -127,6 +137,11 @@ async function startServer() {
         res.status(500).json({ error: "Xatolik yuz berdi. Qayta urinib ko'ring." });
       }
     }
+  });
+
+  app.all("/api/*", (req, res) => {
+    console.warn(`API Not Found: ${req.method} ${req.url}`);
+    res.status(404).json({ error: `API yo'nalishi topilmadi: ${req.method} ${req.url}` });
   });
 
   // Vite middleware for development
