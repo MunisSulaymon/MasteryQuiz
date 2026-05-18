@@ -27,7 +27,9 @@ import { RefreshCcw, Check, Cloud, CloudOff, Info, X } from 'lucide-react';
 
 // Import views
 const PortalPage = lazy(() => import('./components/views/PortalPage'));
-const ExamPage = lazy(() => import('./components/views/ExamDashboard'));
+const ExamDashboard = lazy(() => import('./components/views/ExamDashboard'));
+const ExamScreen = lazy(() => import('./components/views/ExamScreen'));
+const ExamResults = lazy(() => import('./components/views/ExamResults'));
 import LandingView from './components/views/LandingView';
 import SelectionView from './components/views/SelectionView';
 import QuizView from './components/views/QuizView';
@@ -36,6 +38,8 @@ import VictoryView from './components/views/VictoryView';
 import PacksView from './components/views/PacksView';
 import PackModal from './components/modals/PackModal';
 import ConfirmModal from './components/modals/ConfirmModal';
+import MigrationModal from './components/modals/MigrationModal';
+import { localStore } from './utils/localStore';
 
 function AppContent() {
   const navigate = useNavigate();
@@ -68,6 +72,9 @@ function AppContent() {
   const [showPackModal, setShowPackModal] = useState(false);
   const [editingPack, setEditingPack] = useState<QuizPack | null>(null);
   const [deletingPack, setDeletingPack] = useState<QuizPack | null>(null);
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [guestStats, setGuestStats] = useState({ packCount: 0, questionCount: 0 });
 
   // Derived Sets (Memoized)
   const sets = useMemo(() => {
@@ -226,24 +233,41 @@ function AppContent() {
     }
     setIsAuthLoading(true);
     const unsubscribe = onAuthStateChanged(auth, async (u) => {
+      const prevUser = user;
       setUser(u);
       setIsAuthLoading(false);
-      if (u) {
-        try {
-          await ensureUserRecord(u.email || '');
-          const synced = await syncGuestDataToFirestore();
-          if (synced) {
-            setShowSyncSuccess(true);
-            setTimeout(() => setShowSyncSuccess(false), 3000);
-          }
-        } catch (e) {
-          console.error("User record sync failed", e);
+      
+      if (u && !prevUser) {
+        // Just signed in, check for guest data
+        const guestData = localStore.getAllGuestData();
+        if (guestData.packs.length > 0) {
+          const qCount = Object.values(guestData.questions).reduce((acc, q) => acc + q.length, 0);
+          setGuestStats({ packCount: guestData.packs.length, questionCount: qCount });
+          setShowMigrationModal(true);
         }
+        await ensureUserRecord(u.email || '');
       }
       loadInitialData();
     });
     return unsubscribe;
-  }, [loadInitialData]);
+  }, [loadInitialData, user]);
+
+  const handleMigrate = async () => {
+    setIsMigrating(true);
+    try {
+      const success = await syncGuestDataToFirestore();
+      if (success) {
+        setShowSyncSuccess(true);
+        setTimeout(() => setShowSyncSuccess(false), 3000);
+        await loadInitialData(true);
+      }
+    } catch (e) {
+      console.error("Migration failed", e);
+    } finally {
+      setIsMigrating(false);
+      setShowMigrationModal(false);
+    }
+  };
 
   const handleSaveProgress = useCallback(async (finalQuestions?: Question[]) => {
     if (!activePack) return;
@@ -430,22 +454,22 @@ function AppContent() {
     return (
       <motion.div 
         initial={{ y: -100 }} animate={{ y: 0 }}
-        className="fixed top-0 left-0 right-0 z-[60] bg-indigo-600 text-white p-3 flex items-center justify-between shadow-lg"
+        className="fixed top-0 left-0 right-0 z-[60] bg-emerald-600 text-white p-3 flex items-center justify-between shadow-lg"
       >
         <div className="flex items-center gap-3 ml-4">
-          <Cloud className="w-5 h-5 text-indigo-200" />
+          <Cloud className="w-5 h-5 text-emerald-200" />
           <p className="text-sm font-bold tracking-tight">
-            Want to study on multiple devices? <span className="hidden sm:inline">Sign in to sync your packs.</span>
+            ☁️ Kirish qiling va progressizni bulutga saqlang
           </p>
         </div>
         <div className="flex items-center gap-3 mr-4">
           <button 
             onClick={() => setShowBenefitsModal(true)}
-            className="px-4 py-1.5 bg-white text-indigo-600 rounded-full text-xs font-black uppercase hover:bg-indigo-50 transition-colors"
+            className="px-4 py-1.5 bg-white text-emerald-600 rounded-full text-xs font-black uppercase hover:bg-emerald-50 transition-colors"
           >
-            Sign In
+            Kirish
           </button>
-          <button onClick={() => setBannerDismissed(true)} className="p-1 hover:text-indigo-200">
+          <button onClick={() => setBannerDismissed(true)} className="p-1 hover:text-emerald-200">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -471,17 +495,17 @@ function AppContent() {
         </div>
         
         <div className="flex flex-col items-center text-center space-y-6">
-          <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-2">
-            <Cloud className="w-10 h-10 text-indigo-600" />
+          <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-2">
+            <Cloud className="w-10 h-10 text-emerald-600" />
           </div>
-          <h2 className="text-3xl font-black tracking-tight leading-none text-gray-900">Sync Your Progress</h2>
-          <p className="text-gray-500 font-medium">Keep your study data safe and accessible everywhere.</p>
+          <h2 className="text-3xl font-black tracking-tight leading-none text-gray-900">Synchronize</h2>
+          <p className="text-gray-500 font-medium">Progressingizni saqlang va barcha qurilmalarda ko'ring.</p>
           
           <div className="w-full space-y-4 text-left">
             {[
-              { icon: Check, text: "Seamlessly sync between phone and laptop" },
-              { icon: Check, text: "Never lose your data, even if you clear browser" },
-              { icon: Check, text: "Study offline and sync when reconnected" }
+              { icon: Check, text: "Telefon va noutbuk o'rtasida sinxronizatsiya" },
+              { icon: Check, text: "Ma'lumotlar hech qachon yo'qolmaydi" },
+              { icon: Check, text: "Oflayn o'rganish va keyin sinxronlash" }
             ].map((item, i) => (
               <div key={i} className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl">
                 <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
@@ -494,9 +518,9 @@ function AppContent() {
 
           <button 
             onClick={() => { setShowBenefitsModal(false); handleLogin(); }}
-            className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-3xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-indigo-100 active:scale-95 flex items-center justify-center gap-3"
+            className="w-full py-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-3xl font-black uppercase tracking-widest text-sm transition-all shadow-xl shadow-emerald-100 active:scale-95 flex items-center justify-center gap-3"
           >
-            Sign In with Google
+            Google bilan kirish
           </button>
         </div>
       </motion.div>
@@ -562,6 +586,15 @@ function AppContent() {
       {/* Modals */}
       <AnimatePresence>
         {showBenefitsModal && <BenefitsModal />}
+        {showMigrationModal && (
+          <MigrationModal 
+            packCount={guestStats.packCount}
+            questionCount={guestStats.questionCount}
+            onConfirm={handleMigrate}
+            onCancel={() => setShowMigrationModal(false)}
+            isMigrating={isMigrating}
+          />
+        )}
         {showPackModal && (
           <PackModal 
             onClose={() => { setShowPackModal(false); setEditingPack(null); }}
@@ -597,7 +630,9 @@ function AppContent() {
             />
           } />
           
-          <Route path="/exam" element={<ExamPage user={user} onLogin={handleLogin} />} />
+          <Route path="/exam" element={<ExamDashboard user={user} onLogin={handleLogin} />} />
+          <Route path="/exam/start" element={<ExamScreen user={user} />} />
+          <Route path="/exam/results/:historyId" element={<ExamResults />} />
           
           <Route path="/study" element={
             <AnimatePresence mode="wait">

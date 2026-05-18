@@ -17,7 +17,8 @@ import {
   Brain,
   Layers,
   Clock,
-  Info
+  Info,
+  Cloud
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { User } from 'firebase/auth';
@@ -32,12 +33,48 @@ interface ExamDashboardProps {
 
 export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'questions' | 'import'>('questions');
+  const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam'>('questions');
   const [packs, setPacks] = useState<QuizPack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string>('');
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isPacksLoading, setIsPacksLoading] = useState(true);
+
+  // Exam Config States
+  const [examType, setExamType] = useState<'joriy' | 'oraliq' | 'yakuniy' | 'custom'>('yakuniy');
+  const [questionCount, setQuestionCount] = useState(30);
+  const [timeLimit, setTimeLimit] = useState(60);
+  const [difficulties, setDifficulties] = useState({ oson: 15, orta: 55, qiyin: 30 });
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const EXAM_PRESETS = {
+    joriy: { questions: 15, time: 20, diff: { oson: 35, orta: 55, qiyin: 10 } },
+    oraliq: { questions: 25, time: 40, diff: { oson: 20, orta: 60, qiyin: 20 } },
+    yakuniy: { questions: 30, time: 60, diff: { oson: 15, orta: 55, qiyin: 30 } },
+    custom: { questions: 30, time: 60, diff: { oson: 15, orta: 55, qiyin: 30 } }
+  };
+
+  useEffect(() => {
+    if (examType !== 'custom') {
+      const preset = EXAM_PRESETS[examType];
+      setQuestionCount(preset.questions);
+      setTimeLimit(preset.time);
+      setDifficulties(preset.diff);
+    }
+  }, [examType]);
+
+  const handleStartExam = () => {
+    const params = new URLSearchParams({
+      packId: selectedPackId,
+      type: examType,
+      count: questionCount.toString(),
+      time: timeLimit.toString(),
+      oson: difficulties.oson.toString(),
+      orta: difficulties.orta.toString(),
+      qiyin: difficulties.qiyin.toString()
+    });
+    navigate(`/exam/start?${params.toString()}`);
+  };
 
   // Import states
   const [rawText, setRawText] = useState('');
@@ -173,30 +210,6 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
     }));
   };
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#F0F2F5] flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-20 h-20 bg-emerald-100 rounded-3xl flex items-center justify-center text-emerald-600 mb-6">
-          <BookOpen className="w-10 h-10" />
-        </div>
-        <h1 className="text-2xl font-black text-gray-900 mb-2">Imtihon platformasi</h1>
-        <p className="text-gray-500 mb-8 max-w-xs">Savollarni boshqarish va import qilish uchun tizimga kiring.</p>
-        <button 
-          onClick={onLogin}
-          className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-emerald-200"
-        >
-          Google orqali kirish
-        </button>
-        <button 
-          onClick={() => navigate('/')}
-          className="mt-6 text-emerald-600 font-bold text-sm"
-        >
-          Portalga qaytish
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#F0F2F5] pb-24">
       {/* Header */}
@@ -211,23 +224,35 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
             </button>
             <div>
               <h1 className="text-sm font-black uppercase tracking-tighter text-emerald-600">Imtihon Banki</h1>
-              {selectedPackId && (
+              {selectedPackId ? (
                 <div className="flex items-center gap-1 group cursor-pointer" onClick={() => fetchPacks()}>
                   <span className="text-xs font-bold text-gray-700">
                     {packs.find(p => p.id === selectedPackId)?.name || 'To\'plam'}
                   </span>
                   <ChevronDown className="w-3 h-3 text-gray-400" />
                 </div>
+              ) : (
+                <span className="text-xs font-bold text-gray-400">To'plamni tanlang</span>
               )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {!user && (
+              <button 
+                onClick={onLogin}
+                className="hidden sm:flex items-center gap-2 px-4 py-2 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold hover:bg-emerald-200 transition-colors mr-2"
+              >
+                <Cloud className="w-4 h-4" />
+                Bulutga saqlash
+              </button>
+            )}
             <select 
               value={selectedPackId}
               onChange={(e) => setSelectedPackId(e.target.value)}
-              className="bg-gray-50 border-none rounded-xl text-xs font-bold px-4 py-2 focus:ring-2 focus:ring-emerald-500/20"
+              className="max-w-[120px] sm:max-w-none bg-gray-50 border-none rounded-xl text-xs font-bold px-4 py-2 focus:ring-2 focus:ring-emerald-500/20"
             >
+              <option value="" disabled>Tanlang...</option>
               {packs.map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -242,6 +267,28 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
         </div>
       </header>
 
+      {!user && (
+        <div className="max-w-4xl mx-auto px-6 mt-6">
+          <div className="bg-emerald-600 rounded-3xl p-4 text-white flex items-center justify-between shadow-lg shadow-emerald-100">
+             <div className="flex items-center gap-3">
+               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+                 <Cloud className="w-5 h-5" />
+               </div>
+               <div>
+                 <p className="text-sm font-bold">☁️ Kirish qiling va progressizni saqlang</p>
+                 <p className="text-[10px] opacity-70 font-medium">Ma'lumotlaringiz qurilma xotirasida saqlanmoqda</p>
+               </div>
+             </div>
+             <button 
+               onClick={onLogin}
+               className="px-6 py-2 bg-white text-emerald-600 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-50 transition-all"
+             >
+               Kirish
+             </button>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="max-w-4xl mx-auto px-6 mt-6">
         <div className="flex bg-white/50 backdrop-blur p-1 rounded-2xl border border-gray-200">
@@ -250,6 +297,12 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
             className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'questions' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             Savollar
+          </button>
+          <button 
+            onClick={() => setActiveTab('exam')}
+            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'exam' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Imtihon
           </button>
           <button 
             onClick={() => setActiveTab('import')}
@@ -340,6 +393,116 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
                 </button>
               </div>
             )}
+          </div>
+        ) : activeTab === 'exam' ? (
+          <div className="space-y-6">
+            <div className="bg-white border border-gray-100 rounded-[2.5rem] p-8 shadow-sm">
+               <h2 className="text-xl font-black text-gray-900 mb-2 italic">Imtihon simulyatori</h2>
+               <p className="text-gray-400 text-sm mb-8 font-medium">Haqiqiy HEMIS muhitida o'zingizni sinab ko'ring.</p>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                 {(['joriy', 'oraliq', 'yakuniy', 'custom'] as const).map((type) => (
+                   <button
+                    key={type}
+                    onClick={() => setExamType(type)}
+                    className={`p-6 rounded-3xl border-2 text-left transition-all ${examType === type ? 'border-emerald-500 bg-emerald-50/50 shadow-lg shadow-emerald-100' : 'border-gray-100 hover:border-gray-200 bg-white'}`}
+                   >
+                     <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600">
+                          {type === 'custom' ? 'Maxsus' : `${type} nazorat`}
+                        </span>
+                        {examType === type && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                     </div>
+                     <div className="font-black text-gray-900 text-lg mb-1 capitalize">
+                       {type === 'custom' ? 'O\'zingiz belgilang' : type}
+                     </div>
+                     <div className="text-xs text-gray-400 font-bold">
+                       {EXAM_PRESETS[type].questions} ta savol  ·  {EXAM_PRESETS[type].time} daqiqa
+                     </div>
+                   </button>
+                 ))}
+               </div>
+
+               <div className="space-y-6 bg-gray-50 rounded-3xl p-6 border border-gray-100">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-2 px-2">Savollar soni</label>
+                      <input 
+                        type="number" 
+                        disabled={examType !== 'custom'}
+                        value={questionCount}
+                        onChange={(e) => setQuestionCount(Number(e.target.value))}
+                        className="w-full bg-white border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-2 px-2">Vaqt (daqiqa)</label>
+                      <input 
+                        type="number" 
+                        disabled={examType !== 'custom'}
+                        value={timeLimit}
+                        onChange={(e) => setTimeLimit(Number(e.target.value))}
+                        className="w-full bg-white border-none rounded-2xl p-4 font-bold text-gray-700 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                     <button 
+                       onClick={() => setShowAdvanced(!showAdvanced)}
+                       className="text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-emerald-600 flex items-center gap-1 transition-colors px-2"
+                     >
+                       Qiyinchilik darajasi (Advanced)
+                       {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                     </button>
+                     {showAdvanced && (
+                       <div className="mt-4 space-y-4 px-2">
+                         <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl">
+                            <p className="text-[10px] font-bold text-emerald-700 mb-1 leading-relaxed">
+                              Tavsiya etilgan taqsimot (HEMIS community based).
+                            </p>
+                         </div>
+                         <div className="grid grid-cols-3 gap-4">
+                           {Object.entries(difficulties).map(([lvl, val]) => (
+                             <div key={lvl}>
+                               <label className="text-[9px] font-black uppercase text-gray-400 tracking-widest block mb-1 capitalize">{lvl}</label>
+                               <div className="flex items-center gap-2">
+                                 <input 
+                                   type="number"
+                                   disabled={examType !== 'custom'}
+                                   value={val}
+                                   onChange={(e) => setDifficulties({...difficulties, [lvl]: Number(e.target.value)})}
+                                   className="w-full bg-white border-none rounded-xl p-2 text-xs font-bold text-gray-700 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50" 
+                                 />
+                                 <span className="text-[10px] font-bold text-gray-400">%</span>
+                               </div>
+                             </div>
+                           ))}
+                         </div>
+                       </div>
+                     )}
+                  </div>
+               </div>
+
+               <div className="mt-8 flex flex-col items-center gap-4">
+                  {questions.length < questionCount && (
+                    <div className="flex items-center gap-2 text-amber-600 bg-amber-50 px-4 py-2 rounded-full border border-amber-100">
+                       <AlertTriangle className="w-4 h-4" />
+                       <span className="text-[10px] font-black uppercase tracking-widest">Faqat {questions.length} ta savol mavjud</span>
+                    </div>
+                  )}
+                  <button 
+                    onClick={handleStartExam}
+                    disabled={questions.length === 0}
+                    className="w-full md:w-auto px-12 py-5 bg-emerald-600 text-white rounded-3xl font-black uppercase tracking-widest text-sm shadow-xl shadow-emerald-200 hover:bg-emerald-700 hover:scale-[1.02] transition-all disabled:opacity-50"
+                  >
+                    Imtihonni boshlash
+                  </button>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                    {questionCount} ta savol · {timeLimit} daqiqa · Tasodifiy tartibda
+                  </p>
+               </div>
+            </div>
           </div>
         ) : (
           <div className="space-y-6">

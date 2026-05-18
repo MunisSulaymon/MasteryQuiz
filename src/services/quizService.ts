@@ -6,10 +6,13 @@ import {
   getDocs, 
   serverTimestamp,
   writeBatch,
-  deleteDoc
+  deleteDoc,
+  query,
+  orderBy
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Question, QuizSet, QuizPack, ExamQuestion } from '../types';
+import { Question, QuizSet, QuizPack, ExamQuestion, ExamHistory } from '../types';
+import { localStore } from '../utils/localStore';
 
 // Local Storage Helpers
 const CACHE_KEY_PREFIX = 'mastery_quiz_';
@@ -45,20 +48,25 @@ export function loadFromLocal(userId: string, suffix: string) {
 
 export async function createPack(pack: Partial<QuizPack>) {
   const packId = pack.id || Math.random().toString(36).substring(2, 11);
-  const userId = auth?.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid;
   const newPack = {
     ...pack,
     id: packId,
     createdAt: Date.now(),
     lastStudied: Date.now(),
     questionCount: pack.questionCount || 0,
-  };
+  } as QuizPack;
 
-  // Update local cache FIRST for immediate UI feedback
+  if (!userId) {
+    localStore.savePack(newPack);
+    return packId;
+  }
+
+  // Update local cache for authenticated users
   const cachedPacks = loadFromLocal(userId, 'packs') || [];
   saveToLocal(userId, 'packs', [newPack, ...cachedPacks]);
 
-  if (db && auth?.currentUser) {
+  if (db) {
     const path = `users/${userId}/packs/${packId}`;
     try {
       await setDoc(doc(db, path), {
@@ -68,7 +76,6 @@ export async function createPack(pack: Partial<QuizPack>) {
       });
     } catch (error) {
       console.error("Firestore creation failed, kept in local storage", error);
-      // We don't re-throw here to allow app to continue in "offline" mode
     }
   }
   
@@ -76,14 +83,23 @@ export async function createPack(pack: Partial<QuizPack>) {
 }
 
 export async function updatePack(packId: string, updates: Partial<QuizPack>) {
-  const userId = auth?.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid;
   
+  if (!userId) {
+    const packs = localStore.getPacks();
+    const pack = packs.find(p => p.id === packId);
+    if (pack) {
+      localStore.savePack({ ...pack, ...updates });
+    }
+    return;
+  }
+
   // Update local cache first
   const cachedPacks = loadFromLocal(userId, 'packs') || [];
   const updated = cachedPacks.map((p: QuizPack) => p.id === packId ? { ...p, ...updates } : p);
   saveToLocal(userId, 'packs', updated);
 
-  if (db && auth?.currentUser) {
+  if (db) {
     const path = `users/${userId}/packs/${packId}`;
     try {
       await setDoc(doc(db, path), {
@@ -97,14 +113,19 @@ export async function updatePack(packId: string, updates: Partial<QuizPack>) {
 }
 
 export async function deletePack(packId: string) {
-  const userId = auth?.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid;
   
+  if (!userId) {
+    localStore.deletePack(packId);
+    return;
+  }
+
   // Update local cache first
   const cachedPacks = loadFromLocal(userId, 'packs') || [];
   saveToLocal(userId, 'packs', cachedPacks.filter((p: QuizPack) => p.id !== packId));
   localStorage.removeItem(getCacheKey(userId, `pack_${packId}_data`));
 
-  if (db && auth?.currentUser) {
+  if (db) {
     const path = `users/${userId}/packs/${packId}`;
     try {
       const batch = writeBatch(db);
@@ -119,20 +140,37 @@ export async function deletePack(packId: string) {
 }
 
 export async function syncSessionData(packId: string, questions: Question[], setsMastery: Map<number, any>, inputText: string, setSize: number) {
-  const userId = auth?.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid;
   
   // Update local cache first
   const packData = {
-    questionsState: new Map(questions.map(q => [q.id, { box: q.box, wrongCount: q.wrongCount }])),
-    setsMastery: setsMastery
+    questionsState: Array.from(new Map(questions.map(q => [q.id, { box: q.box, wrongCount: q.wrongCount }])).entries()),
+    setsMastery: Array.from(setsMastery.entries()),
+    inputText,
+    setSize,
+    questionCount: questions.length
   };
-  saveToLocal(userId, `pack_${packId}_data`, { 
-    ...packData, 
-    questionsState: Array.from(packData.questionsState.entries()),
-    setsMastery: Array.from(packData.setsMastery.entries())
-  });
 
-  if (db && auth?.currentUser) {
+  if (!userId) {
+    localStore.savePackData(packId, packData);
+    // Also update the pack itself in the list
+    const packs = localStore.getPacks();
+    const pack = packs.find(p => p.id === packId);
+    if (pack) {
+      localStore.savePack({ 
+        ...pack, 
+        inputText, 
+        setSize, 
+        questionCount: questions.length, 
+        lastStudied: Date.now() 
+      });
+    }
+    return;
+  }
+
+  saveToLocal(userId, `pack_${packId}_data`, packData);
+
+  if (db) {
     const packPath = `users/${userId}/packs/${packId}`;
     try {
       const batch = writeBatch(db);
@@ -144,9 +182,9 @@ export async function syncSessionData(packId: string, questions: Question[], set
         lastStudied: serverTimestamp(),
       }, { merge: true });
 
-      const questionsState = questions.map(q => ({ id: q.id, box: q.box, wrongCount: q.wrongCount }));
+      const qStates = questions.map(q => ({ id: q.id, box: q.box, wrongCount: q.wrongCount }));
       batch.set(doc(db, `${packPath}/data/questions`), { 
-        states: questionsState,
+        states: qStates,
         lastUpdated: serverTimestamp() 
       });
 
@@ -162,7 +200,7 @@ export async function syncSessionData(packId: string, questions: Question[], set
       await batch.commit();
     } catch (error) {
       console.error("Sync to cloud failed, progress saved locally", error);
-      throw error; // keep throwing for sync UI status
+      throw error;
     }
   }
 }
@@ -218,28 +256,17 @@ async function migrateUserData(userId: string) {
 }
 
 export async function loadUserData(forceRefresh = false) {
-  const userId = auth?.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid;
   
-  // If guest, use local only
-  if (!auth?.currentUser || !db) {
-    const cached = loadFromLocal(userId, 'packs');
-    if (cached) return { packs: cached };
-    return { packs: [] };
+  // If guest, use local store
+  if (!userId || !db) {
+    return { packs: localStore.getPacks() };
   }
 
-  // If not force refresh, check cache first but we'll fetch anyway to ensure sync
-  const cached = loadFromLocal(userId, 'packs');
-  if (!forceRefresh && cached && cached.length > 0) {
-    // Return cached but initiate a sync in background? 
-    // For now, let's just fetch if user is present to be safe, unless we want to be super fast
-  }
-
-  // Try migration first but don't let it block
+  // try migration for old structure if needed
   try {
     await migrateUserData(userId);
-  } catch (e) {
-    console.warn("Migration failed or not needed", e);
-  }
+  } catch (e) {}
 
   const packsPath = `users/${userId}/packs`;
   try {
@@ -260,18 +287,15 @@ export async function loadUserData(forceRefresh = false) {
   } catch (error: any) {
     console.error("Load from cloud failed, using local", error);
     const cached = loadFromLocal(userId, 'packs');
-    if (cached) return { packs: cached };
-    return { packs: [] };
+    return { packs: cached || [] };
   }
 }
 
 export async function loadPackData(packId: string, forceRefresh = false) {
-  const userId = auth?.currentUser?.uid || 'guest';
+  const userId = auth?.currentUser?.uid;
 
-  const cached = loadFromLocal(userId, `pack_${packId}_data`);
-  
-  // If guest or no DB, use local only
-  if (!auth?.currentUser || !db) {
+  if (!userId || !db) {
+    const cached = localStore.getPackData(packId);
     if (cached) {
       return {
         questionsState: new Map(cached.questionsState),
@@ -281,10 +305,10 @@ export async function loadPackData(packId: string, forceRefresh = false) {
     return null;
   }
 
-  // If user is present, always try to fetch from cloud to ensure multi-device sync
+  const cached = loadFromLocal(userId, `pack_${packId}_data`);
   const dataPath = `users/${userId}/packs/${packId}/data`;
+  
   try {
-    // Read optimized documents
     const [qSnap, sSnap] = await Promise.all([
       getDoc(doc(db, `${dataPath}/questions`)),
       getDoc(doc(db, `${dataPath}/sets`))
@@ -295,7 +319,6 @@ export async function loadPackData(packId: string, forceRefresh = false) {
       const states = qSnap.data().states || [];
       states.forEach((s: any) => questionsStateMap.set(s.id, { box: s.box, wrongCount: s.wrongCount }));
     } else if (cached) {
-       // use cached if exists and cloud fail
        cached.questionsState.forEach(([id, s]: [string, any]) => questionsStateMap.set(id, s));
     }
 
@@ -314,7 +337,6 @@ export async function loadPackData(packId: string, forceRefresh = false) {
       setsMastery: setsMasteryMap
     };
     
-    // Save to local
     saveToLocal(userId, `pack_${packId}_data`, {
       questionsState: Array.from(questionsStateMap.entries()),
       setsMastery: Array.from(setsMasteryMap.entries())
@@ -336,14 +358,14 @@ export async function loadPackData(packId: string, forceRefresh = false) {
 export async function syncGuestDataToFirestore() {
   if (!auth?.currentUser || !db) return false;
   const userId = auth.currentUser.uid;
-  const guestPacks = loadFromLocal('guest', 'packs');
+  const guestData = localStore.getAllGuestData();
   
-  if (!guestPacks || guestPacks.length === 0) return false;
+  if (!guestData.packs || guestData.packs.length === 0) return false;
 
   try {
     const batch = writeBatch(db);
     
-    for (const pack of guestPacks) {
+    for (const pack of guestData.packs) {
       const packPath = `users/${userId}/packs/${pack.id}`;
       batch.set(doc(db, packPath), {
         ...pack,
@@ -351,42 +373,49 @@ export async function syncGuestDataToFirestore() {
         lastStudied: serverTimestamp(),
       });
 
-      // Sync pack data (questions and sets)
-      const guestData = loadFromLocal('guest', `pack_${pack.id}_data`);
-      if (guestData) {
-        const dataPath = `users/${userId}/packs/${pack.id}/data`;
+      // Sync Exam Questions
+      const questions = guestData.questions[pack.id] || [];
+      questions.forEach(q => {
+        const qRef = doc(collection(db, `${packPath}/questions`));
+        batch.set(qRef, {
+          ...q,
+          createdAt: serverTimestamp(),
+          createdBy: userId
+        });
+      });
+
+      // Sync study study state
+      const studyData = guestData.packData[pack.id];
+      if (studyData) {
+        const dataPath = `${packPath}/data`;
         
-        const questionsState = guestData.questionsState.map(([id, state]: [string, any]) => ({ id, ...state }));
         batch.set(doc(db, `${dataPath}/questions`), {
-          states: questionsState,
+          states: studyData.questionsState.map(([id, state]: [string, any]) => ({ id, ...state })),
           lastUpdated: serverTimestamp()
         });
 
         const setsMasteryObj: Record<string, any> = {};
-        guestData.setsMastery.forEach(([key, val]: [number, any]) => {
+        studyData.setsMastery.forEach(([key, val]: [number, any]) => {
           setsMasteryObj[key] = val;
         });
         batch.set(doc(db, `${dataPath}/sets`), {
           mastery: setsMasteryObj,
           lastUpdated: serverTimestamp()
         });
-
-        // Update local storage for the user as well
-        saveToLocal(userId, `pack_${pack.id}_data`, guestData);
       }
     }
 
-    await batch.commit();
-    
-    // Update packs in user local storage
-    saveToLocal(userId, 'packs', guestPacks);
-    
-    // Clear guest data
-    localStorage.removeItem(getCacheKey('guest', 'packs'));
-    guestPacks.forEach((p: QuizPack) => {
-      localStorage.removeItem(getCacheKey('guest', `pack_${p.id}_data`));
-    });
+    // Sync Exam History
+    for (const history of guestData.examHistory) {
+      const hRef = doc(collection(db, `users/${userId}/examHistory`));
+      batch.set(hRef, {
+        ...history,
+        createdAt: serverTimestamp()
+      });
+    }
 
+    await batch.commit();
+    localStore.clearGuestData();
     return true;
   } catch (e) {
     console.error("Guest sync failed", e);
@@ -395,9 +424,13 @@ export async function syncGuestDataToFirestore() {
 }
 
 export async function saveExamQuestions(packId: string, questions: ExamQuestion[]) {
-  if (!auth?.currentUser || !db) return;
-  const userId = auth.currentUser.uid;
+  const userId = auth?.currentUser?.uid;
   
+  if (!userId || !db) {
+    localStore.saveQuestions(packId, questions);
+    return;
+  }
+
   try {
     const batch = writeBatch(db);
     questions.forEach(q => {
@@ -428,9 +461,12 @@ export async function saveExamQuestions(packId: string, questions: ExamQuestion[
 }
 
 export async function loadExamQuestions(packId: string): Promise<ExamQuestion[]> {
-  if (!auth?.currentUser || !db) return [];
-  const userId = auth.currentUser.uid;
+  const userId = auth?.currentUser?.uid;
   
+  if (!userId || !db) {
+    return localStore.getQuestions(packId);
+  }
+
   try {
     const qSnap = await getDocs(collection(db, `users/${userId}/packs/${packId}/questions`));
     return qSnap.docs.map(d => ({
@@ -441,6 +477,73 @@ export async function loadExamQuestions(packId: string): Promise<ExamQuestion[]>
   } catch (error) {
     console.error("Failed to load exam questions:", error);
     return [];
+  }
+}
+
+export async function saveExamHistory(history: ExamHistory) {
+  const userId = auth?.currentUser?.uid;
+  const historyWithId = {
+    ...history,
+    id: history.id || Math.random().toString(36).substring(2, 11),
+    createdAt: history.createdAt || Date.now()
+  };
+
+  if (!userId || !db) {
+    localStore.saveExamResult(historyWithId);
+    return historyWithId.id;
+  }
+
+  try {
+    const historyRef = doc(collection(db, `users/${userId}/examHistory`));
+    await setDoc(historyRef, {
+      ...historyWithId,
+      createdAt: serverTimestamp()
+    });
+    return historyRef.id;
+  } catch (error) {
+    console.error("Failed to save exam history:", error);
+    throw error;
+  }
+}
+
+export async function loadExamHistory(): Promise<ExamHistory[]> {
+  const userId = auth?.currentUser?.uid;
+  
+  if (!userId || !db) {
+    return localStore.getExamHistory();
+  }
+
+  try {
+    const qSnap = await getDocs(query(collection(db, `users/${userId}/examHistory`), orderBy('createdAt', 'desc')));
+    return qSnap.docs.map(d => ({
+      ...d.data(),
+      id: d.id,
+      createdAt: toMillis(d.data().createdAt)
+    } as unknown as ExamHistory));
+  } catch (error) {
+    console.error("Failed to load exam history:", error);
+    return [];
+  }
+}
+
+export async function loadHistoryItem(id: string): Promise<ExamHistory | null> {
+  const userId = auth?.currentUser?.uid;
+  
+  if (!userId || !db) {
+    return localStore.getHistoryItem(id);
+  }
+
+  try {
+    const dSnap = await getDoc(doc(db, `users/${userId}/examHistory`, id));
+    if (!dSnap.exists()) return null;
+    return {
+      ...dSnap.data(),
+      id: dSnap.id,
+      createdAt: toMillis(dSnap.data().createdAt)
+    } as unknown as ExamHistory;
+  } catch (error) {
+    console.error("Failed to load history item:", error);
+    return null;
   }
 }
 

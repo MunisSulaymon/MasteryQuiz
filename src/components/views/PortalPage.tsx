@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { BookOpen, HelpCircle, Settings, LogIn, LogOut, ClipboardCheck, ArrowRight, Info, CheckCircle2 } from 'lucide-react';
+import { BookOpen, HelpCircle, Settings, LogIn, LogOut, ClipboardCheck, ArrowRight, Info, CheckCircle2, Cloud } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { QuizPack } from '../../types';
@@ -102,16 +102,16 @@ export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoadi
         <div className="max-w-[400px] mx-auto px-6 mb-6">
           <button 
             onClick={onLogin}
-            className="w-full p-4 bg-white border border-gray-200 rounded-3xl flex items-center gap-4 hover:border-indigo-300 transition-all group"
+            className="w-full p-4 bg-emerald-600 text-white rounded-3xl flex items-center gap-4 hover:bg-emerald-700 transition-all group shadow-lg shadow-emerald-100"
           >
-            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
-              <BookOpen className="w-5 h-5 text-indigo-600" />
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <Cloud className="w-5 h-5 text-white" />
             </div>
             <div className="text-left">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Bulutga saqlash</p>
-              <p className="text-sm font-bold text-gray-700">Kirish qiling va progressizni saqlang</p>
+              <p className="text-xs font-bold text-emerald-100 uppercase tracking-widest">Bulutga saqlash</p>
+              <p className="text-sm font-bold truncate">☁️ Kirish qiling va progressizni saqlang</p>
             </div>
-            <ArrowRight className="w-5 h-5 text-gray-300 ml-auto group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-5 h-5 text-emerald-100 ml-auto group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
       )}

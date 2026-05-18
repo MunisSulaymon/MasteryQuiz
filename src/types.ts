@@ -61,3 +61,34 @@ export interface ExamQuestion {
   timesCorrect: number;
   timesIncorrect: number;
 }
+
+export interface ExamSession {
+  examType: 'joriy' | 'oraliq' | 'yakuniy' | 'custom';
+  questions: ExamQuestion[];
+  answers: (number | null)[]; // index of selected option
+  flags: boolean[];
+  startTime: number;
+  totalTime: number; // in seconds
+  packId: string;
+}
+
+export interface ExamHistory {
+  id?: string;
+  packId: string;
+  examType: string;
+  totalQuestions: number;
+  correctCount: number;
+  score: number;
+  grade: string;
+  ects: string;
+  timeUsed: number;
+  timeTotal: number;
+  topicBreakdown: { 
+    [topic: string]: { 
+      correct: number; 
+      total: number; 
+    } 
+  };
+  failedQuestionIds: string[];
+  createdAt: any;
+}
