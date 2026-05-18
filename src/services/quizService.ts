@@ -9,7 +9,7 @@ import {
   deleteDoc
 } from 'firebase/firestore';
 import { auth, db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Question, QuizSet, QuizPack } from '../types';
+import { Question, QuizSet, QuizPack, ExamQuestion } from '../types';
 
 // Local Storage Helpers
 const CACHE_KEY_PREFIX = 'mastery_quiz_';
@@ -391,6 +391,56 @@ export async function syncGuestDataToFirestore() {
   } catch (e) {
     console.error("Guest sync failed", e);
     return false;
+  }
+}
+
+export async function saveExamQuestions(packId: string, questions: ExamQuestion[]) {
+  if (!auth?.currentUser || !db) return;
+  const userId = auth.currentUser.uid;
+  
+  try {
+    const batch = writeBatch(db);
+    questions.forEach(q => {
+      const qRef = doc(collection(db, `users/${userId}/packs/${packId}/questions`));
+      batch.set(qRef, {
+        ...q,
+        createdAt: serverTimestamp(),
+        createdBy: userId
+      });
+    });
+    
+    // Update question count in pack
+    const packRef = doc(db, `users/${userId}/packs/${packId}`);
+    const packDoc = await getDoc(packRef);
+    if (packDoc.exists()) {
+      const currentCount = packDoc.data().questionCount || 0;
+      batch.update(packRef, {
+        questionCount: currentCount + questions.length,
+        lastUpdated: serverTimestamp()
+      });
+    }
+
+    await batch.commit();
+  } catch (error) {
+    console.error("Failed to save exam questions:", error);
+    throw error;
+  }
+}
+
+export async function loadExamQuestions(packId: string): Promise<ExamQuestion[]> {
+  if (!auth?.currentUser || !db) return [];
+  const userId = auth.currentUser.uid;
+  
+  try {
+    const qSnap = await getDocs(collection(db, `users/${userId}/packs/${packId}/questions`));
+    return qSnap.docs.map(d => ({
+      ...d.data(),
+      id: d.id,
+      createdAt: toMillis(d.data().createdAt)
+    } as ExamQuestion));
+  } catch (error) {
+    console.error("Failed to load exam questions:", error);
+    return [];
   }
 }
 

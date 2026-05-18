@@ -10,10 +10,12 @@ import {
   Settings2, 
   Trash2,
   MoreVertical,
-  Edit2
+  Edit2,
+  ArrowLeft
 } from 'lucide-react';
 import { QuizPack } from '../../types';
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface PacksViewProps {
   packs: QuizPack[];
@@ -52,6 +54,7 @@ export default function PacksView({
   user,
   onExtend
 }: PacksViewProps) {
+  const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
   // Check for auto-delete warnings
@@ -71,9 +74,18 @@ export default function PacksView({
   return (
     <div className="max-w-6xl mx-auto px-6 py-20 pb-40">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-8">
-        <div>
-          <h2 className="text-4xl md:text-5xl font-black mb-2 tracking-tight">My Packs</h2>
-          <p className="text-gray-500 font-medium">Connect your sets to exams and deadlines.</p>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate('/')}
+            className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors border border-gray-100 shrink-0"
+            title="Portalga qaytish"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h2 className="text-4xl md:text-5xl font-black mb-2 tracking-tight">My Packs</h2>
+            <p className="text-gray-500 font-medium">Connect your sets to exams and deadlines.</p>
+          </div>
         </div>
         <div className="flex items-center gap-4">
           <button 

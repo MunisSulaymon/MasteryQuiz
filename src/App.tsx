@@ -3,11 +3,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Loader2,
 } from 'lucide-react';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { Question, QuizSet, AppView, QuizSession, QuizPack, SyncStatus } from './types';
 import { parseQuestions, splitIntoSets, parseSingleQuestion } from './utils';
 import { auth } from './lib/firebase';
@@ -25,6 +26,8 @@ import {
 import { RefreshCcw, Check, Cloud, CloudOff, Info, X } from 'lucide-react';
 
 // Import views
+const PortalPage = lazy(() => import('./components/views/PortalPage'));
+const ExamPage = lazy(() => import('./components/views/ExamDashboard'));
 import LandingView from './components/views/LandingView';
 import SelectionView from './components/views/SelectionView';
 import QuizView from './components/views/QuizView';
@@ -34,7 +37,9 @@ import PacksView from './components/views/PacksView';
 import PackModal from './components/modals/PackModal';
 import ConfirmModal from './components/modals/ConfirmModal';
 
-export default function App() {
+function AppContent() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [view, setView] = useState<AppView>('landing');
   const [packs, setPacks] = useState<QuizPack[]>([]);
   const [activePack, setActivePack] = useState<QuizPack | null>(null);
@@ -575,97 +580,131 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      <AnimatePresence mode="wait">
-        {view === 'landing' && (
-            <motion.div key="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <LandingView 
-                inputText={inputText} 
-                setInputText={setInputText} 
-                onParse={handleParse}
-                user={user}
-                onLogin={handleLogin}
-                onLogout={handleLogout}
-                isDataLoading={isDataLoading}
-                sets={sets}
-                isParsing={isParsing}
-                parseProgress={parseProgress}
-                parseError={parseError}
-                authError={authError}
-                onClearAuthError={() => setAuthError(null)}
-                onBack={() => setView('packs')}
-              />
-            </motion.div>
-          )}
-          {view === 'packs' && (
-            <motion.div key="packs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <PacksView 
-                packs={packs}
-                onSelect={handleSelectPack}
-                onCreate={() => setShowPackModal(true)}
-                onEdit={(p) => { setEditingPack(p); setShowPackModal(true); }}
-                onDelete={(p) => setDeletingPack(p)}
-                onLogout={handleLogout}
-                user={user}
-                onExtend={handleExtendPack}
-              />
-            </motion.div>
-          )}
-          {view === 'selection' && (
-            <motion.div key="selection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <SelectionView 
-                sets={sets} 
-                onSelect={(s) => startSet(s, 'leitner')}
-                onQuickTest={(s) => startSet(s, 'quick-test')}
-                onResetSet={resetSetAndStart}
-                onBack={() => setView('packs')}
-                onLogout={handleLogout}
-                user={user}
-                setSize={setSize}
-                setSetSize={setSetSize}
-                onEditPack={() => setView('landing')}
-              />
-            </motion.div>
-          )}
-          {(view === 'quiz' || view === 'drill') && (
-            <motion.div key={view} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <QuizView 
-                session={(view === 'quiz' ? session : drillSession)!} 
-                onComplete={handleComplete}
-                onBack={() => setView(view === 'quiz' ? 'selection' : 'summary')}
-                onUpdateQuestion={handleUpdateQuestion}
-                title={view === 'drill' ? "Weakness Drill" : undefined}
-              />
-            </motion.div>
-          )}
-          {view === 'victory' && (
-            <motion.div key="victory" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <VictoryView onHome={() => setView('selection')} />
-            </motion.div>
-          )}
-          {view === 'summary' && session && (
-            <motion.div key="summary" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <SummaryView 
-                session={session} 
-                onRetry={() => {
-                  const isMastered = activeSet!.questions.every(q => q.box === 3);
-                  if (isMastered) resetSetAndStart(activeSet!);
-                  else startSet(activeSet!, 'leitner');
-                }}
-                onNextSet={() => {
-                  const next = sets.find(s => s.id === session.setId + 1);
-                  if (next) startSet(next, 'leitner');
-                  else setView('selection');
-                }}
-                onHome={() => setView('selection')}
-                onLogout={handleLogout}
-                user={user}
-                onDrill={startDrill}
-                onSave={handleSaveProgress}
-                previousBest={setsMastery.get(session.setId)?.bestRounds}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+      <Suspense fallback={
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
+          <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+          <p className="text-gray-500 font-bold animate-pulse">Loading Platform...</p>
+        </div>
+      }>
+        <Routes location={location}>
+          <Route path="/" element={
+            <PortalPage 
+              user={user} 
+              packs={packs} 
+              onLogin={handleLogin} 
+              onLogout={handleLogout} 
+              isAuthLoading={isAuthLoading}
+            />
+          } />
+          
+          <Route path="/exam" element={<ExamPage user={user} onLogin={handleLogin} />} />
+          
+          <Route path="/study" element={
+            <AnimatePresence mode="wait">
+              {view === 'landing' && (
+                  <motion.div key="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <LandingView 
+                      inputText={inputText} 
+                      setInputText={setInputText} 
+                      onParse={handleParse}
+                      user={user}
+                      onLogin={handleLogin}
+                      onLogout={handleLogout}
+                      isDataLoading={isDataLoading}
+                      sets={sets}
+                      isParsing={isParsing}
+                      parseProgress={parseProgress}
+                      parseError={parseError}
+                      authError={authError}
+                      onClearAuthError={() => setAuthError(null)}
+                      onBack={() => setView('packs')}
+                    />
+                  </motion.div>
+                )}
+                {view === 'packs' && (
+                  <motion.div key="packs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <PacksView 
+                      packs={packs}
+                      onSelect={handleSelectPack}
+                      onCreate={() => setShowPackModal(true)}
+                      onEdit={(p) => { setEditingPack(p); setShowPackModal(true); }}
+                      onDelete={(p) => setDeletingPack(p)}
+                      onLogout={handleLogout}
+                      user={user}
+                      onExtend={handleExtendPack}
+                    />
+                  </motion.div>
+                )}
+                {view === 'selection' && (
+                  <motion.div key="selection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <SelectionView 
+                      sets={sets} 
+                      onSelect={(s) => startSet(s, 'leitner')}
+                      onQuickTest={(s) => startSet(s, 'quick-test')}
+                      onResetSet={resetSetAndStart}
+                      onBack={() => setView('packs')}
+                      onLogout={handleLogout}
+                      user={user}
+                      setSize={setSize}
+                      setSetSize={setSetSize}
+                      onEditPack={() => setView('landing')}
+                    />
+                  </motion.div>
+                )}
+                {(view === 'quiz' || view === 'drill') && (
+                  <motion.div key={view} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <QuizView 
+                      session={(view === 'quiz' ? session : drillSession)!} 
+                      onComplete={handleComplete}
+                      onBack={() => setView(view === 'quiz' ? 'selection' : 'summary')}
+                      onUpdateQuestion={handleUpdateQuestion}
+                      title={view === 'drill' ? "Weakness Drill" : undefined}
+                    />
+                  </motion.div>
+                )}
+                {view === 'victory' && (
+                  <motion.div key="victory" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <VictoryView onHome={() => setView('selection')} />
+                  </motion.div>
+                )}
+                {view === 'summary' && session && (
+                  <motion.div key="summary" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <SummaryView 
+                      session={session} 
+                      onRetry={() => {
+                        const isMastered = activeSet!.questions.every(q => q.box === 3);
+                        if (isMastered) resetSetAndStart(activeSet!);
+                        else startSet(activeSet!, 'leitner');
+                      }}
+                      onNextSet={() => {
+                        const next = sets.find(s => s.id === session.setId + 1);
+                        if (next) startSet(next, 'leitner');
+                        else setView('selection');
+                      }}
+                      onHome={() => setView('selection')}
+                      onLogout={handleLogout}
+                      user={user}
+                      onDrill={startDrill}
+                      onSave={handleSaveProgress}
+                      previousBest={setsMastery.get(session.setId)?.bestRounds}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+          } />
+          
+          {/* Fallback */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppContent />
+    </BrowserRouter>
   );
 }

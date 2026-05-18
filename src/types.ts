@@ -45,3 +45,19 @@ export interface QuizSession {
   endTime?: number;
   mode: 'leitner' | 'quick-test';
 }
+
+export interface ExamQuestion {
+  id?: string;
+  text: string;
+  options: string[];
+  correctIndex: number;
+  hemisRaw: string;
+  difficulty: 'oson' | 'orta' | 'qiyin';
+  topic: string | null;
+  source_platform: 'exam';
+  createdAt: any;
+  createdBy: string;
+  timesUsed: number;
+  timesCorrect: number;
+  timesIncorrect: number;
+}
