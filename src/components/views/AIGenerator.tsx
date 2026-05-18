@@ -72,7 +72,13 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
       const response = await fetch('/api/generate-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: sourceText, count: questionCount })
+        body: JSON.stringify({ 
+          text: sourceText, 
+          count: questionCount,
+          numQuestions: questionCount,
+          difficulty: 'orta',
+          language: 'Uzbek'
+        })
       });
 
       const text = await response.text();

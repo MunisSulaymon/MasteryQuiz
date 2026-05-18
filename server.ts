@@ -31,124 +31,141 @@ async function startServer() {
     res.json({ status: "ok", keyExists: !!GEMINI_KEY });
   });
 
-  app.get("/api/generate-questions", (req, res) => {
-    res.status(405).json({ error: "Bu endpoint faqat POST so'rovlarini qabul qiladi." });
-  });
-
-  app.post("/api/generate-questions", async (req, res) => {
-    const { text, count = 15 } = req.body;
-    console.log(`Received POST /api/generate-questions - Count: ${count}, Text length: ${text?.length}`);
-
-    if (!GEMINI_KEY || !genAI) {
-      console.error("Gemini API Key is missing");
-      return res.status(500).json({ error: "Gemini API kaliti topilmadi yoki noto'g'ri. Iltimos administrator bilan bog'laning." });
-    }
-
-    if (!text || text.length < 10) { // Lowered for debugging
-      return res.status(400).json({ error: "Matn juda qisqa. Kamida 100 ta belgi kerak." });
-    }
-
+  // POST /api/generate-questions
+  app.post('/api/generate-questions', express.json(), async (req, res) => {
+    console.log('=== GENERATE ROUTE HIT ===');
+    console.log('Method:', req.method);
+    console.log('Body:', JSON.stringify(req.body).substring(0, 200));
+    
     try {
-      console.log("Generating questions using gemini-1.5-flash...");
-      let startTime = Date.now();
+      const { text, count, numQuestions, difficulty, language } = req.body;
+      const targetCount = count || numQuestions || 5;
       
-      let model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-        generationConfig: {
-          responseMimeType: "application/json",
-        }
-      });
-
-      const prompt = `Quyidagi matndan ${count} ta test savoli yaratib ber. Savollar O'zbek tilida bo'lsin.
-      Har bir savol variantlari va to'g'ri javob indeksi bilan bo'lishi shart.
+      console.log(`Processing generation for ${targetCount} questions. Language: ${language}, Difficulty: ${difficulty}`);
       
-      JSON formatida qaytar:
-      {
-        "questions": [
-          {
-            "text": "savol matni",
-            "options": ["variant A", "variant B", "variant C", "variant D"],
-            "correctIndex": 0,
-            "difficulty": "oson" | "orta" | "qiyin",
-            "bloomsLevel": "Remember" | "Understand" | "Apply" | "Analyze",
-            "topic": "mavzu nomi",
-            "confidenceScore": 85,
-            "sourceReference": "matndan olingan qisqa parcha"
-          }
-        ]
+      // Validate input
+      if (!text || text.trim().length < 50) {
+        return res.status(400).json({ 
+          error: 'Matn juda qisqa. Kamida 50 ta belgi kerak.' 
+        });
+      }
+      
+      // Check API key
+      if (!GEMINI_KEY) {
+        console.error('GEMINI_API_KEY is not set');
+        return res.status(500).json({ 
+          error: 'API kaliti sozlanmagan' 
+        });
+      }
+      
+      console.log('API Key starts with:', GEMINI_KEY.substring(0, 4));
+      
+      if (!genAI) {
+        return res.status(500).json({ error: 'AI servisi tayyor emas' });
       }
 
-      Matn:
-      ${text}`;
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      
+      const prompt = `Generate exactly ${targetCount} multiple-choice questions from the following text in HEMIS format.
+Language: ${language || 'Uzbek'}.
+Difficulty: ${difficulty || 'medium'}.
 
-      let result;
-      try {
-        result = await model.generateContent(prompt);
-      } catch (flashErr) {
-        console.warn("Gemini 1.5 Flash failed, trying Pro fallback...", flashErr);
-        model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-        result = await model.generateContent(prompt);
-      }
+HEMIS format rules:
+1. Each question block is separated by ++++.
+2. Inside each block, the question stem and each option are separated by ====.
+3. The CORRECT option MUST start with a # symbol.
+4. Provide 4 options for each question.
 
-      const response = await result.response;
-      const responseText = response.text();
+Example:
+Savol matni bu yerda
+====
+# To'g'ri javob
+====
+Noto'g'ri javob 1
+====
+Noto'g'ri javob 2
+====
+Noto'g'ri javob 3
+++++
 
-      console.log(`Gemini responded in ${Date.now() - startTime}ms`);
+Text to process:
+${text}`;
+      
+      console.log('Calling Gemini...');
+      const result = await model.generateContent(prompt);
+      console.log('Gemini response received');
+      
+      const responseText = result.response.text();
+      console.log('Response length:', responseText.length);
       
       if (!responseText || responseText.trim().length === 0) {
-        console.error("Gemini response text is empty. Full response candidate:", JSON.stringify(response.candidates?.[0], null, 2));
-        return res.status(500).json({ error: "AI javob bermadi (Javob matni bo'sh). Iltimos qaytadan urinib ko'ring." });
-      }
-
-      console.log("Raw Response Preview:", responseText.substring(0, 500) + "...");
-      
-      let data;
-      try {
-        const cleanedText = responseText.replace(/```json\n?|```/g, '').trim();
-        data = JSON.parse(cleanedText);
-      } catch (jsonErr) {
-        console.error("Failed to parse Gemini response as JSON:", responseText);
-        return res.status(500).json({ error: "AI javobini o'qib bo'lmadi (JSON format xatosi). Qayta urinib ko'ring." });
+        return res.status(500).json({ 
+          error: 'AI modeli bo\'sh javob qaytardi' 
+        });
       }
       
-      const questions = data.questions || [];
+      // Parse HEMIS format from response
+      const questions = parseHemisResponse(responseText);
+      
       if (questions.length === 0) {
-        return res.status(500).json({ error: "AI savol yarata olmadi. Iltimos matnni o'zgartirib ko'ring." });
+        console.error("Failed to parse any questions from response:", responseText);
+        return res.status(500).json({ error: "AI javobini o'qib bo'lmadi (parsing xatosi). Iltimos qaytadan urinib ko'ring." });
       }
 
-      // Calculate summary
-      const difficultyCounts = { oson: 0, orta: 0, qiyin: 0 };
-      questions.forEach((q: any) => {
-        if (q.difficulty in difficultyCounts) {
-          difficultyCounts[q.difficulty as keyof typeof difficultyCounts]++;
-        }
-      });
-
-      res.json({
+      return res.json({ 
+        success: true, 
         questions,
+        count: questions.length,
         summary: {
           total: questions.length,
-          difficultyCounts
+          difficultyCounts: { oson: questions.length, orta: 0, qiyin: 0 } // Mocked as the parser doesn't extract this
         }
       });
-    } catch (err: any) {
-      console.error("Gemini Error:", err);
-      const errorMessage = err.message || "Xatolik yuz berdi.";
       
-      if (errorMessage.includes("quota")) {
-        return res.status(429).json({ error: "Kunlik limit tugadi. Ertaga yana urinib ko'ring." });
-      }
-      
-      if (errorMessage.includes("API key not valid")) {
-        return res.status(500).json({ error: "Gemini API kaliti noto'g'ri. Administrator bilan bog'laning." });
-      }
-
-      res.status(500).json({ 
-        error: "AI Generation xatosi: " + errorMessage,
-        details: err.toString()
+    } catch (error: any) {
+      console.error('Gemini error:', error.message);
+      console.error('Full error:', JSON.stringify(error, null, 2));
+      return res.status(500).json({ 
+        error: 'Generatsiya xatosi: ' + error.message 
       });
     }
   });
+
+  // Helper to parse HEMIS format
+  function parseHemisResponse(text: string) {
+    const blocks = text.split('++++').filter(b => b.trim());
+    const questions = [];
+    
+    for (const block of blocks) {
+      const parts = block.split('====').map(p => p.trim()).filter(p => p);
+      if (parts.length < 2) continue;
+      
+      const stem = parts[0];
+      const rawOptions = parts.slice(1);
+      
+      // Find the correct option (starts with #)
+      const correctIndex = rawOptions.findIndex(o => o.startsWith('#'));
+      
+      if (correctIndex === -1) continue;
+      
+      // Clean up options
+      const options = rawOptions.map(o => o.replace(/^#\s*/, ''));
+      
+      questions.push({
+        text: stem,
+        options: options,
+        correctIndex: correctIndex,
+        difficulty: 'orta', // Default
+        bloomsLevel: 'Understand', // Default
+        topic: 'General', // Default
+        confidenceScore: 85,
+        sourceReference: stem.substring(0, 80)
+      });
+    }
+    
+    return questions;
+  }
+
 
   app.all("/api/*", (req, res) => {
     console.warn(`API Not Found: ${req.method} ${req.url}`);
