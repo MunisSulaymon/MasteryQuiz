@@ -50,6 +50,7 @@ async function startServer() {
         ],
         config: {
           responseMimeType: "application/json",
+          maxOutputTokens: 8192,
           responseSchema: {
             type: Type.OBJECT,
             properties: {
@@ -77,18 +78,26 @@ async function startServer() {
       });
 
       console.log(`Gemini responded in ${Date.now() - startTime}ms`);
-      const responseText = response.text;
+      
+      const responseText = response.text || '';
       
       if (!responseText) {
-        console.error("Gemini response is empty. Full response:", JSON.stringify(response, null, 2));
-        return res.status(500).json({ error: "AI javobi bo'sh keldi. Iltimos qaytadan urinib ko'ring." });
+        console.error("Gemini response is empty. Response object:", JSON.stringify(response, null, 2));
+        // Check if there are safety notice or other reasons
+        const safetyDetails = response.candidates?.[0]?.finishReason;
+        return res.status(500).json({ 
+          error: "AI javob bermadi. Iltimos matnni qisqartirib yoki o'zgartirib ko'ring.",
+          details: safetyDetails 
+        });
       }
 
       console.log("Raw Response Preview:", responseText.substring(0, 500) + "...");
       
       let data;
       try {
-        data = JSON.parse(responseText);
+        // Fallback for markdown blocks if they somehow appear
+        const cleanedText = responseText.replace(/```json\n?|```/g, '').trim();
+        data = JSON.parse(cleanedText);
       } catch (jsonErr) {
         console.error("Failed to parse Gemini response as JSON:", responseText);
         return res.status(500).json({ error: "AI javobini o'qib bo'lmadi (JSON error). Qayta urinib ko'ring." });

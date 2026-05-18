@@ -75,15 +75,24 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
       });
 
       const text = await response.text();
+      
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = JSON.parse(text);
+        } catch (e) {
+          throw new Error(`Server xatosi (${response.status}): ${text.substring(0, 50) || 'Ma\'lumot yo\'q'}`);
+        }
+        throw new Error(errorData.error || `Sorov muvaffaqiyatsiz tugadi (${response.status})`);
+      }
+
       let data;
       try {
         data = JSON.parse(text);
       } catch (e) {
         console.error("Failed to parse JSON response:", text);
-        throw new Error("Serverdan noto'g'ri javob keldi. Iltimos qaytadan urinib ko'ring.");
+        throw new Error("Serverdan noto'g'ri formatda javob keldi. Iltimos qaytadan urinib ko'ring.");
       }
-
-      if (!response.ok) throw new Error(data.error || "Generation failed");
 
       const enrichedQuestions = data.questions.map((q: any) => ({
         ...q,
