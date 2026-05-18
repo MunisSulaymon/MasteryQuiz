@@ -23,13 +23,19 @@ import {
   TrendingUp,
   Target,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  ShieldCheck,
+  Eye,
+  Trash2,
+  Edit2,
+  Check
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { QuizPack, ExamQuestion, ExamHistory } from '../../types';
 import { parseHemisFormat, HemisParsedQuestion } from '../../utils/hemisParser';
-import { createPack, loadUserData, saveExamQuestions, loadExamQuestions, loadExamHistory } from '../../services/quizService';
+import { createPack, loadUserData, saveExamQuestions, loadExamQuestions, loadExamHistory, updateExamQuestion, deleteExamQuestion } from '../../services/quizService';
+import AIGenerator from './AIGenerator';
 
 interface ExamDashboardProps {
   user: User | null;
@@ -38,7 +44,7 @@ interface ExamDashboardProps {
 
 export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam' | 'history'>('questions');
+  const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam' | 'history' | 'ai'>('questions');
   const [packs, setPacks] = useState<QuizPack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string>('');
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
@@ -46,6 +52,7 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isPacksLoading, setIsPacksLoading] = useState(true);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
 
   // Exam Config States
   const [examType, setExamType] = useState<'joriy' | 'oraliq' | 'yakuniy' | 'custom'>('yakuniy');
@@ -218,6 +225,47 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
     }
   };
 
+  const handleSaveAIGenerated = async (questionsToSave: ExamQuestion[]) => {
+    if (!selectedPackId) return;
+    setIsSaving(true);
+    try {
+      await saveExamQuestions(selectedPackId, questionsToSave);
+      setActiveTab('questions');
+      await fetchPacks();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+const handleReviewQuestion = async (q: ExamQuestion) => {
+    if (!q.id || !selectedPackId) return;
+    try {
+      await updateExamQuestion(selectedPackId, q.id, { aiReviewed: true });
+      setQuestions(prev => prev.map(item => item.id === q.id ? { ...item, aiReviewed: true } : item));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleDeleteQuestion = async (qId: string) => {
+    if (!selectedPackId || !window.confirm("Savolni o'chirmoqchimisiz?")) return;
+    try {
+      await deleteExamQuestion(selectedPackId, qId);
+      setQuestions(prev => prev.filter(q => q.id !== qId));
+      await fetchPacks(); // refresh count
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const toggleSource = (qId: string) => {
+    const next = new Set(expandedSources);
+    if (next.has(qId)) next.delete(qId);
+    else next.add(qId);
+    setExpandedSources(next);
+  };
   const toggleSelection = (idx: number) => {
     const next = new Set(selectedIndexes);
     if (next.has(idx)) next.delete(idx);
@@ -338,6 +386,12 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
           >
             Import
           </button>
+          <button 
+            onClick={() => setActiveTab('ai')}
+            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'ai' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            AI Gen
+          </button>
         </div>
       </div>
 
@@ -364,33 +418,114 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     key={q.id} 
-                    className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm hover:border-emerald-200 transition-colors group"
+                    className="bg-white border border-gray-100 rounded-[2rem] p-6 shadow-sm hover:border-emerald-200 transition-all group overflow-hidden"
                   >
                     <div className="flex items-start justify-between gap-4 mb-4">
-                       <h3 className="font-bold text-gray-800 leading-relaxed">{q.text}</h3>
-                       <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 ${
-                         q.difficulty === 'oson' ? 'bg-blue-50 text-blue-600' :
-                         q.difficulty === 'orta' ? 'bg-orange-50 text-orange-600' :
-                         'bg-rose-50 text-rose-600'
-                       }`}>
-                         {q.difficulty}
+                       <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                             <div className={`px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 ${
+                               q.difficulty === 'oson' ? 'bg-blue-50 text-blue-600' :
+                               q.difficulty === 'orta' ? 'bg-orange-50 text-orange-600' :
+                               'bg-rose-50 text-rose-600'
+                             }`}>
+                               {q.difficulty}
+                             </div>
+                             {q.origin === 'ai-generated' && (
+                               <div className="flex items-center gap-1.5 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100">
+                                  <Brain className="w-2.5 h-2.5" />
+                                  <span className="text-[9px] font-black uppercase tracking-widest">AI Generated</span>
+                               </div>
+                             )}
+                             {q.aiReviewed && (
+                               <div className="flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+                                  <ShieldCheck className="w-2.5 h-2.5" />
+                                  <span className="text-[9px] font-black uppercase tracking-widest">Reviewed</span>
+                               </div>
+                             )}
+                          </div>
+                          <h3 className="font-bold text-gray-800 leading-relaxed text-lg">{q.text}</h3>
+                       </div>
+                       
+                       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button 
+                           onClick={() => handleDeleteQuestion(q.id!)}
+                           className="p-2 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </button>
                        </div>
                     </div>
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {q.options.map((opt, i) => (
-                        <div key={i} className={`p-3 rounded-xl text-xs flex items-center gap-3 ${i === q.correctIndex ? 'bg-emerald-50 text-emerald-700 font-bold border border-emerald-100' : 'bg-gray-50 text-gray-500 border border-transparent'}`}>
-                          <div className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] ${i === q.correctIndex ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+                        <div key={i} className={`p-4 rounded-2xl text-xs flex items-center gap-3 ${i === q.correctIndex ? 'bg-emerald-50 text-emerald-700 font-bold border border-emerald-100' : 'bg-gray-50 text-gray-500 border border-transparent'}`}>
+                          <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] shrink-0 ${i === q.correctIndex ? 'bg-emerald-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
                             {String.fromCharCode(65 + i)}
                           </div>
                           {opt}
                         </div>
                       ))}
                     </div>
+
+                    {q.origin === 'ai-generated' && (
+                      <div className="mt-4 bg-gray-50 rounded-2xl p-4 space-y-4 border border-gray-100">
+                        <div className="flex items-center justify-between">
+                           <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5">
+                                 <div className="w-12 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                    <div 
+                                      className={`h-full ${q.confidenceScore && q.confidenceScore > 80 ? 'bg-emerald-500' : 'bg-amber-500'}`} 
+                                      style={{ width: `${q.confidenceScore || 85}%` }}
+                                    />
+                                 </div>
+                                 <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">Ishonch: {q.confidenceScore || 85}%</span>
+                              </div>
+                              {q.bloomsLevel && (
+                                <span className="text-[9px] font-black uppercase text-gray-400 tracking-widest">
+                                  {q.bloomsLevel}
+                                </span>
+                              )}
+                           </div>
+                           
+                           <div className="flex items-center gap-2">
+                              {q.sourceReference && (
+                                <button 
+                                  onClick={() => toggleSource(q.id!)}
+                                  className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded-lg transition-colors"
+                                >
+                                  {expandedSources.has(q.id!) ? 'Yopish' : 'Manba'}
+                                  <ChevronDown className={`w-3 h-3 transition-transform ${expandedSources.has(q.id!) ? 'rotate-180' : ''}`} />
+                                </button>
+                              )}
+                              {!q.aiReviewed && (
+                                <button 
+                                  onClick={() => handleReviewQuestion(q)}
+                                  className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest bg-emerald-600 text-white hover:bg-emerald-700 px-3 py-1.5 rounded-lg transition-all shadow-sm active:scale-95"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  Tasdiqlash
+                                </button>
+                              )}
+                           </div>
+                        </div>
+
+                        {expandedSources.has(q.id!) && q.sourceReference && (
+                           <motion.div 
+                             initial={{ height: 0, opacity: 0 }}
+                             animate={{ height: 'auto', opacity: 1 }}
+                             className="text-[11px] text-gray-500 italic leading-relaxed border-t border-gray-200 pt-3"
+                           >
+                             "{q.sourceReference}"
+                           </motion.div>
+                        )}
+                      </div>
+                    )}
+
                     <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between">
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1.5 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
                           <BarChart3 className="w-3 h-3" />
-                          To'gri: {Math.round((q.timesCorrect / (q.timesUsed || 1)) * 100)}%
+                          Natija: {q.timesUsed ? Math.round((q.timesCorrect / q.timesUsed) * 100) : 0}%
                         </div>
                         {q.topic && (
                           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
@@ -657,6 +792,8 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
                </div>
             </div>
           </div>
+        ) : activeTab === 'ai' ? (
+          <AIGenerator onSave={handleSaveAIGenerated} isLoading={isSaving} />
         ) : (
           <div className="space-y-6">
             {/* Instruction Card */}

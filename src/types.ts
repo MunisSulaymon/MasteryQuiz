@@ -62,6 +62,15 @@ export interface ExamQuestion {
   timesUsed: number;
   timesCorrect: number;
   timesIncorrect: number;
+  
+  // AI Metadata
+  origin?: 'ai-generated' | 'manual' | 'hemis-import';
+  sourceText?: string;
+  sourceReference?: string;
+  generationModel?: string;
+  confidenceScore?: number;
+  bloomsLevel?: 'Remember' | 'Understand' | 'Apply' | 'Analyze';
+  aiReviewed?: boolean;
 }
 
 export interface ExamSession {

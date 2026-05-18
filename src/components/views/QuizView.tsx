@@ -10,7 +10,8 @@ import {
   Trophy,
   PartyPopper,
   Home,
-  Sparkles
+  Sparkles,
+  Shuffle
 } from 'lucide-react';
 import { Question, QuizSession } from '../../types';
 import { shuffleArray } from '../../utils';
@@ -129,6 +130,7 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
     const box1 = questions.filter(q => q.box === 1);
     const box2 = questions.filter(q => q.box === 2);
     
+    // Grouping by box and shuffling within each group using Fisher-Yates (via shuffleArray)
     const queue: Question[] = [
       ...shuffleArray<Question>(box1),
       ...shuffleArray<Question>(box2)
@@ -254,6 +256,10 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
             <div className="flex items-center gap-1 md:gap-2 text-slate-400">
               <Play className="w-3 h-3 md:w-4 md:h-4 fill-current" />
               <span className="font-bold text-[10px] md:text-sm whitespace-nowrap">Round {rounds}</span>
+            </div>
+            <div className="hidden sm:flex items-center gap-1 md:gap-2 px-2 md:px-3 py-1 bg-slate-700/50 rounded-lg border border-slate-600/50 text-slate-400">
+              <Shuffle className="w-3 h-3 md:w-4 md:h-4" />
+              <span className="font-bold text-[10px] md:text-xs whitespace-nowrap uppercase tracking-widest">Tasodifiy tartib</span>
             </div>
           </div>
 

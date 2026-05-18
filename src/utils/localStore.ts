@@ -95,6 +95,31 @@ export const localStore = {
     saveRawData(data);
   },
 
+  updateQuestion(packId: string, questionId: string, updates: Partial<ExamQuestion>) {
+    const data = getRawData();
+    if (data.questions[packId]) {
+      data.questions[packId] = data.questions[packId].map(q => 
+        (q.id === questionId || (q as any).tempId === questionId) ? { ...q, ...updates } : q
+      );
+      saveRawData(data);
+    }
+  },
+
+  deleteQuestion(packId: string, questionId: string) {
+    const data = getRawData();
+    if (data.questions[packId]) {
+      data.questions[packId] = data.questions[packId].filter(q => 
+        q.id !== questionId && (q as any).tempId !== questionId
+      );
+      // Update count
+      const pack = data.packs.find(p => p.id === packId);
+      if (pack) {
+        pack.questionCount = data.questions[packId].length;
+      }
+      saveRawData(data);
+    }
+  },
+
   getAllGuestData() {
     return getRawData();
   },

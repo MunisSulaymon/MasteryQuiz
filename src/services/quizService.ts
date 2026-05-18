@@ -630,6 +630,51 @@ export async function findWeakPackByExamId(examId: string): Promise<QuizPack | n
   }
 }
 
+export async function updateExamQuestion(packId: string, questionId: string, updates: Partial<ExamQuestion>) {
+  const userId = auth?.currentUser?.uid;
+  
+  if (!userId || !db) {
+    localStore.updateQuestion(packId, questionId, updates);
+    return;
+  }
+
+  try {
+    const qRef = doc(db, `users/${userId}/packs/${packId}/questions/${questionId}`);
+    await setDoc(qRef, updates, { merge: true });
+  } catch (error) {
+    console.error("Failed to update exam question:", error);
+    throw error;
+  }
+}
+
+export async function deleteExamQuestion(packId: string, questionId: string) {
+  const userId = auth?.currentUser?.uid;
+  
+  if (!userId || !db) {
+    localStore.deleteQuestion(packId, questionId);
+    return;
+  }
+
+  try {
+    const qRef = doc(db, `users/${userId}/packs/${packId}/questions/${questionId}`);
+    await deleteDoc(qRef);
+    
+    // Update question count in pack
+    const packRef = doc(db, `users/${userId}/packs/${packId}`);
+    const packDoc = await getDoc(packRef);
+    if (packDoc.exists()) {
+      const currentCount = packDoc.data().questionCount || 0;
+      await setDoc(packRef, {
+        questionCount: Math.max(0, currentCount - 1),
+        lastUpdated: serverTimestamp()
+      }, { merge: true });
+    }
+  } catch (error) {
+    console.error("Failed to delete exam question:", error);
+    throw error;
+  }
+}
+
 export async function ensureUserRecord(email: string) {
   if (!auth?.currentUser || !db) return;
   const path = `users/${auth.currentUser.uid}`;
