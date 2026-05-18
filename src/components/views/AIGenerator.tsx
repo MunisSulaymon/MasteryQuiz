@@ -74,7 +74,15 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
         body: JSON.stringify({ text: sourceText, count: questionCount })
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error("Failed to parse JSON response:", text);
+        throw new Error("Serverdan noto'g'ri javob keldi. Iltimos qaytadan urinib ko'ring.");
+      }
+
       if (!response.ok) throw new Error(data.error || "Generation failed");
 
       const enrichedQuestions = data.questions.map((q: any) => ({

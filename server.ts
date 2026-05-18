@@ -33,25 +33,11 @@ async function startServer() {
     }
 
     try {
+      console.log("Generating questions for text length:", text.length);
       const response = await ai.models.generateContent({
         model: "gemini-3-flash-preview",
         contents: `Quyidagi matndan ${count} ta test savoli yaratib ber. Savollar O'zbek tilida bo'lsin.
-        Qiyinchilik darajalari (oson, orta, qiyin) va Bloom taksonomiyasi (Remember, Understand, Apply, Analyze) bo'yicha taqsimlansin.
-        Har bir savol uchun quyidagi JSON formatda javob ber:
-        {
-          "questions": [
-            {
-              "text": "savol matni",
-              "options": ["variant A", "variant B", "variant C", "variant D"],
-              "correctIndex": 0,
-              "difficulty": "oson" | "orta" | "qiyin",
-              "bloomsLevel": "Remember" | "Understand" | "Apply" | "Analyze",
-              "topic": "mavzu nomi",
-              "confidenceScore": 85,
-              "sourceReference": "matndan olingan qisqa parcha (max 80 belgi)"
-            }
-          ]
-        }
+        Har bir savol variantlari va to'g'ri javob indeksi bilan bo'lishi shart.
         
         Matn:
         ${text}`,
@@ -83,20 +69,23 @@ async function startServer() {
         }
       });
 
-      const data = JSON.parse(response.text || "{}");
+      const responseText = response.text || "{}";
+      console.log("Raw Response:", responseText.substring(0, 500) + "...");
+      const data = JSON.parse(responseText);
       
       // Calculate summary
       const difficultyCounts = { oson: 0, orta: 0, qiyin: 0 };
-      data.questions?.forEach((q: any) => {
+      const questions = data.questions || [];
+      questions.forEach((q: any) => {
         if (q.difficulty in difficultyCounts) {
           difficultyCounts[q.difficulty as keyof typeof difficultyCounts]++;
         }
       });
 
       res.json({
-        ...data,
+        questions,
         summary: {
-          total: data.questions?.length || 0,
+          total: questions.length,
           difficultyCounts
         }
       });
