@@ -31,28 +31,38 @@ export default async function handler(req, res) {
 
     const genAI = new GoogleGenerativeAI(apiKey);
 
-    // Try models in order
-    let model;
-    const modelNames = ['gemini-1.5-flash-latest', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-001'];
-    let lastError;
-    
-    for (const name of modelNames) {
-      try {
-        console.log(`Checking model: ${name}`);
-        model = genAI.getGenerativeModel({ model: name });
-        // The user's snippet had a test call:
-        // const testResult = await model.generateContent('test');
-        // if (testResult.response.text()) break;
-        // I will trust the user and include the check if they want it, but usually checking model existence is enough.
-        // However, some models might return 404 on generateContent even if getGenerativeModel returns an object.
-        break; 
-      } catch (e) {
-        lastError = e;
-        continue;
+    // Fetch available models
+    const modelsResponse = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models?key=' + apiKey
+    );
+    const modelsData = await modelsResponse.json();
+    const availableModels = modelsData.models || [];
+
+    // Find a suitable model
+    let modelName = null;
+    for (const m of availableModels) {
+      if (m.name.includes('gemini') && 
+          m.supportedGenerationMethods?.includes('generateContent')) {
+        if (m.name.includes('flash')) {
+          modelName = m.name.replace('models/', '');
+          break;
+        }
       }
     }
-    
-    if (!model) throw lastError || new Error('No available model');
+    if (!modelName) {
+      // fallback to any gemini model
+      const geminiModel = availableModels.find(m => 
+        m.name.includes('gemini') && 
+        m.supportedGenerationMethods?.includes('generateContent')
+      );
+      if (geminiModel) modelName = geminiModel.name.replace('models/', '');
+    }
+    if (!modelName) {
+      return res.status(500).json({ error: 'No suitable Gemini model found' });
+    }
+
+    console.log('Selected model:', modelName);
+    const model = genAI.getGenerativeModel({ model: modelName });
 
     const prompt = `You are an expert ${language || 'Uzbek'} professor creating multiple-choice questions for university exams (HEMIS format). 
 Generate exactly ${numQuestions || 5} questions from the following text. 
