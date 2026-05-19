@@ -43,13 +43,11 @@ export default function SelectionView({ sets, onSelect, onQuickTest, onResetSet,
             onClick={onEditPack}
             className="px-6 py-3 bg-white hover:bg-gray-50 rounded-xl font-bold border border-gray-200 transition-all text-gray-600 shadow-sm"
           >
-            {user ? 'Edit Questions' : 'Paste Again'}
+            Edit Questions
           </button>
-          {user && (
-            <button onClick={onLogout} className="p-3 bg-white hover:bg-red-50 text-red-500 rounded-xl border border-gray-200 transition-colors shadow-sm">
-              <LogOut className="w-5 h-5" />
-            </button>
-          )}
+          <button onClick={onLogout} className="p-3 bg-white hover:bg-red-50 text-red-500 rounded-xl border border-gray-200 transition-colors shadow-sm" title={user ? "Log out" : "Reset Session"}>
+            <LogOut className="w-5 h-5" />
+          </button>
         </div>
       </div>
 

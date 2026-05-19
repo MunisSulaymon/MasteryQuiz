@@ -16,7 +16,7 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { ExamQuestion, ExamSession, ExamHistory } from '../../types';
-import { loadExamQuestions, saveExamHistory } from '../../services/quizService';
+import { dataService } from '../../services/dataService';
 import { prepareExamQuestions } from '../../utils/examUtils';
 
 interface ExamScreenProps {
@@ -63,7 +63,7 @@ export default function ExamScreen({ user }: ExamScreenProps) {
   const initExam = async (packId: string, count: number, time: number, type: any, dist: any) => {
     setIsLoading(true);
     try {
-      const allQs = await loadExamQuestions(packId);
+      const allQs = await dataService.getQuestions(packId);
       const prepared = prepareExamQuestions(allQs, count, dist);
       
       setSession({
@@ -116,7 +116,7 @@ export default function ExamScreen({ user }: ExamScreenProps) {
   };
 
   const handleSubmit = async (isAuto = false) => {
-    if (!session || !user) return;
+    if (!session) return;
     setIsSubmitting(true);
 
     const timeUsed = session.totalTime - timeLeft;
@@ -153,10 +153,9 @@ export default function ExamScreen({ user }: ExamScreenProps) {
     const config = {
       questionCount: session.questions.length,
       timeLimit: session.totalTime / 60,
-      difficulties: { oson: 0, orta: 0, qiyin: 0 } // Ideally we'd store the original search params
+      difficulties: { oson: 0, orta: 0, qiyin: 0 }
     };
 
-    // Try to recover original difficulties from URL if possible, or just use what we have
     const searchParams = new URLSearchParams(location.search);
     config.difficulties = {
       oson: Number(searchParams.get('oson') || 15),
@@ -164,7 +163,8 @@ export default function ExamScreen({ user }: ExamScreenProps) {
       qiyin: Number(searchParams.get('qiyin') || 30)
     };
 
-    const history: ExamHistory = {
+    const historyRecord: ExamHistory = {
+      id: Math.random().toString(36).substring(2, 11),
       packId: session.packId,
       examType: session.examType,
       totalQuestions: session.questions.length,
@@ -176,16 +176,16 @@ export default function ExamScreen({ user }: ExamScreenProps) {
       timeTotal: session.totalTime,
       topicBreakdown,
       failedQuestionIds,
-      createdAt: null,
+      createdAt: Date.now(),
       config
     };
 
     try {
-      const historyId = await saveExamHistory(history);
-      navigate(`/exam/results/${historyId}`, { 
+      await dataService.saveExamResult(historyRecord);
+      navigate(`/exam/results/${historyRecord.id}`, { 
         replace: true, 
         state: { 
-          ...history,
+          ...historyRecord,
           correctCount, 
           total: session.questions.length, 
           timeUsed, 

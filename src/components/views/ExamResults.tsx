@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Trophy, ArrowLeft, BookOpen, LayoutGrid, ChevronRight, Loader2, AlertTriangle, Clock, Target, RotateCcw, Brain, CheckCircle, RefreshCcw, XCircle } from 'lucide-react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { loadHistoryItem, createWeakPack, getQuestionsByIds, findWeakPackByExamId, updatePack, deletePack } from '../../services/quizService';
-import { ExamHistory } from '../../types';
+import { dataService } from '../../services/dataService';
+import { ExamHistory, ExamQuestion, QuizPack } from '../../types';
 
 export default function ExamResults() {
   const navigate = useNavigate();
@@ -25,8 +25,8 @@ export default function ExamResults() {
     if (!historyId) return;
     setIsLoading(true);
     try {
-      const data = await loadHistoryItem(historyId);
-      if (data) setHistory(data as any);
+      const data = await dataService.getExamHistoryItem(historyId);
+      if (data) setHistory(data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -41,11 +41,11 @@ export default function ExamResults() {
   };
 
   const handleStudyWeak = async (forceUpdate = false) => {
-    if (!history) return;
+    if (!history || !historyId) return;
     
     // Check if already exists unless forcing update
     if (!forceUpdate) {
-      const existing = await findWeakPackByExamId(historyId!);
+      const existing = await dataService.findWeakPackByExamId(historyId);
       if (existing) {
         setShowConfirmUpdate(true);
         return;
@@ -55,17 +55,17 @@ export default function ExamResults() {
     setIsCreatingWeak(true);
     try {
       if (forceUpdate) {
-        // Find and delete the old one first to avoid duplicates
-        const existing = await findWeakPackByExamId(historyId!);
+        const existing = await dataService.findWeakPackByExamId(historyId);
         if (existing) {
-          await deletePack(existing.id);
+          await dataService.deletePack(existing.id);
         }
       }
 
       const dateStr = new Date(history.createdAt || Date.now()).toLocaleDateString('uz-UZ');
       const packName = `Imtihon zaif savollari — ${dateStr}`;
       
-      const failedQuestions = await getQuestionsByIds(history.packId, history.failedQuestionIds);
+      const allQuestions = await dataService.getQuestions(history.packId);
+      const failedQuestions = allQuestions.filter(q => history.failedQuestionIds.includes(q.id!));
       
       if (failedQuestions.length === 0) {
         alert("Hamma savollarga to'g'ri javob berilgan! Zaif savollar yo'q.");
@@ -73,7 +73,22 @@ export default function ExamResults() {
         return;
       }
 
-      const weakPackId = await createWeakPack(historyId!, packName, failedQuestions);
+      const weakPackId = Math.random().toString(36).substring(2, 11);
+      const weakPack: QuizPack = {
+        id: weakPackId,
+        name: packName,
+        color: 'rose',
+        questionCount: failedQuestions.length,
+        createdAt: Date.now(),
+        lastStudied: Date.now(),
+        deleteAt: null,
+        setSize: 20,
+        inputText: '', // or some metadata
+        examId: historyId // metadata
+      } as any;
+
+      await dataService.savePack(weakPack);
+      await dataService.saveQuestions(weakPackId, failedQuestions);
       
       setShowToast(`✅ ${failedQuestions.length} ta zaif savol O'rganish platformasiga qo'shildi!`);
       setTimeout(() => {

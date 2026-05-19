@@ -14,7 +14,6 @@ import { parseQuestions, splitIntoSets, parseSingleQuestion } from './utils';
 import { auth } from './lib/firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { 
-  ensureUserRecord, 
   loadUserData, 
   createPack,
   updatePack,
@@ -23,6 +22,7 @@ import {
   syncSessionData,
   syncGuestDataToFirestore
 } from './services/quizService';
+import { dataService } from './services/dataService';
 import { RefreshCcw, Check, Cloud, CloudOff, Info, X } from 'lucide-react';
 
 // Import views
@@ -89,14 +89,12 @@ function AppContent() {
     setIsDataLoading(true);
     setSyncStatus('syncing');
     try {
-      const data = await loadUserData(force);
-      if (data && data.packs) {
-        setPacks(data.packs);
-        if (view === 'landing' || (view === 'packs' && data.packs.length > 0)) {
-           setView('packs');
-        }
-        setSyncStatus(user ? 'synced' : 'offline');
+      const packs = await dataService.getPacks();
+      setPacks(packs);
+      if (view === 'landing' || (view === 'packs' && packs.length > 0)) {
+         setView('packs');
       }
+      setSyncStatus(user ? 'synced' : 'offline');
     } catch (err) {
       console.error("Load initial data error:", err);
       setSyncStatus('offline');
@@ -110,25 +108,32 @@ function AppContent() {
     setIsDataLoading(true);
     setSyncStatus('syncing');
     try {
-      const data = await loadPackData(pack.id);
+      // Get state and questions
+      const [questions, data] = await Promise.all([
+        dataService.getQuestions(pack.id),
+        dataService.getStudyState(pack.id)
+      ]);
+      
       setInputText(pack.inputText || '');
       setSetSize(pack.setSize || 20);
       
       const parsed = parseQuestions(pack.inputText || '');
       const questionsWithState = parsed.map(q => {
-        const state = data?.questionsState.get(q.id);
+        // Try to find state in the study state map
+        const stateMap = data?.questionsState ? new Map<string, { box: number, wrongCount: number }>(data.questionsState as any) : null;
+        const state = stateMap?.get(q.id);
         if (state) {
-          return { ...q, box: state.box, wrongCount: state.wrongCount };
+          return { ...q, box: state.box as 1 | 2 | 3, wrongCount: state.wrongCount };
         }
         return q;
       });
 
       setAllQuestions(questionsWithState);
       if (data?.setsMastery) {
-        setSetsMastery(data.setsMastery);
+        setSetsMastery(new Map(data.setsMastery));
       }
 
-      setSyncStatus('synced');
+      setSyncStatus(user ? 'synced' : 'offline');
       if (questionsWithState.length > 0) {
         setView('selection');
       } else {
@@ -140,47 +145,39 @@ function AppContent() {
     } finally {
       setIsDataLoading(false);
     }
-  }, []);
+  }, [user]);
 
   const handleCreateOrUpdatePack = async (packData: Partial<QuizPack>) => {
     setSyncStatus('syncing');
     try {
+      const packId = editingPack ? editingPack.id : (packData.id || Math.random().toString(36).substring(2, 11));
+      const fullPack: QuizPack = {
+        ...packData,
+        id: packId,
+        name: packData.name || 'New Pack',
+        color: packData.color || 'indigo',
+        createdAt: editingPack ? editingPack.createdAt : Date.now(),
+        lastStudied: Date.now(),
+        questionCount: editingPack ? editingPack.questionCount : 0,
+        setSize: packData.setSize || 20,
+        inputText: packData.inputText || ''
+      } as QuizPack;
+
+      await dataService.savePack(fullPack);
+      
       if (editingPack) {
-        await updatePack(editingPack.id, packData);
-        setPacks(prev => prev.map(p => p.id === editingPack.id ? { ...p, ...packData } : p));
+        setPacks(prev => prev.map(p => p.id === editingPack.id ? fullPack : p));
       } else {
-        const newId = await createPack(packData);
-        if (newId) {
-          const newPack: QuizPack = { 
-            name: packData.name || 'New Pack',
-            color: packData.color || 'indigo',
-            id: newId, 
-            createdAt: Date.now(), 
-            lastStudied: Date.now(), 
-            questionCount: 0,
-            deleteAt: packData.deleteAt || null,
-            inputText: '',
-            setSize: 20
-          } as QuizPack;
-          setPacks(prev => [newPack, ...prev]);
-        }
+        setPacks(prev => [fullPack, ...prev]);
       }
+      
       setSyncStatus(user ? 'synced' : 'offline');
       setShowPackModal(false);
       setEditingPack(null);
     } catch (err: any) {
       console.error("Save pack failed:", err);
       setSyncStatus('offline');
-      
-      let errorMsg = "Unknown error";
-      try {
-        const info = JSON.parse(err.message);
-        errorMsg = info.error || errorMsg;
-      } catch {
-        errorMsg = err.message || errorMsg;
-      }
-      
-      alert(`Failed to save pack: ${errorMsg}. Please try again.`);
+      alert(`Failed to save pack: ${err.message}`);
     }
   };
 
@@ -192,7 +189,7 @@ function AppContent() {
     setSyncStatus('syncing');
     
     try {
-      await deletePack(packToDelete.id);
+      await dataService.deletePack(packToDelete.id);
       setPacks(prev => prev.filter(p => p.id !== packToDelete.id));
       if (activePack?.id === packToDelete.id) {
          setActivePack(null);
@@ -202,17 +199,7 @@ function AppContent() {
     } catch (err: any) {
       console.error("Delete pack failed:", err);
       setSyncStatus('offline');
-      
-      let errorMsg = "Cloud sync error";
-      try {
-        const info = JSON.parse(err.message);
-        errorMsg = info.error || errorMsg;
-      } catch {
-        errorMsg = err.message || errorMsg;
-      }
-      
-      alert(`Cloud deletion failed: ${errorMsg}. local copy removed.`);
-      setPacks(prev => prev.filter(p => p.id !== packToDelete.id));
+      alert(`Deletion failed: ${err.message}`);
     } finally {
       setIsDataLoading(false);
     }
@@ -224,7 +211,6 @@ function AppContent() {
     setPacks(prev => prev.map(p => p.id === pack.id ? { ...p, deleteAt: newDeleteAt } : p));
   };
 
-  // Auth Listener
   useEffect(() => {
     if (!auth) {
       setIsAuthLoading(false);
@@ -238,14 +224,13 @@ function AppContent() {
       setIsAuthLoading(false);
       
       if (u && !prevUser) {
-        // Just signed in, check for guest data
-        const guestData = localStore.getAllGuestData();
-        if (guestData.packs.length > 0) {
-          const qCount = Object.values(guestData.questions).reduce((acc, q) => acc + q.length, 0);
-          setGuestStats({ packCount: guestData.packs.length, questionCount: qCount });
+        // Just signed in, offer sync
+        const currentPacks = await dataService.getPacks();
+        if (currentPacks.length > 0) {
+          const totalQs = currentPacks.reduce((acc, p) => acc + (p.questionCount || 0), 0);
+          setGuestStats({ packCount: currentPacks.length, questionCount: totalQs });
           setShowMigrationModal(true);
         }
-        await ensureUserRecord(u.email || '');
       }
       loadInitialData();
     });
@@ -255,11 +240,11 @@ function AppContent() {
   const handleMigrate = async () => {
     setIsMigrating(true);
     try {
-      const success = await syncGuestDataToFirestore();
+      const success = await dataService.syncToCloud();
       if (success) {
         setShowSyncSuccess(true);
         setTimeout(() => setShowSyncSuccess(false), 3000);
-        await loadInitialData(true);
+        await loadInitialData();
       }
     } catch (e) {
       console.error("Migration failed", e);
@@ -294,12 +279,18 @@ function AppContent() {
          }
       }
 
-      // Sync everything in one batched call
-      await syncSessionData(activePack.id, questionsToSync, currentMastery, inputText, setSize);
+      const studyData = {
+        questionsState: questionsToSync.map(q => [q.id, { box: q.box, wrongCount: q.wrongCount }]),
+        setsMastery: Array.from(currentMastery.entries()),
+      };
+
+      await dataService.saveStudyState(activePack.id, studyData);
       
-      // Update active pack question count
+      // Update active pack question count if needed
       if (activePack.questionCount !== questionsToSync.length) {
-         setPacks(prev => prev.map(p => p.id === activePack.id ? { ...p, questionCount: questionsToSync.length } : p));
+         const updatedPack = { ...activePack, questionCount: questionsToSync.length };
+         await dataService.savePack(updatedPack);
+         setPacks(prev => prev.map(p => p.id === activePack.id ? updatedPack : p));
       }
 
       setSyncStatus(user ? 'synced' : 'offline');
