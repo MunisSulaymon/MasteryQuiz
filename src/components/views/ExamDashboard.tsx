@@ -33,7 +33,7 @@ import {
 import { User } from 'firebase/auth';
 import { QuizPack, ExamQuestion, ExamHistory } from '../../types';
 import { useNavigation } from '../../context/NavigationContext';
-import { parseHemisFormat, HemisParsedQuestion } from '../../utils/hemisParser';
+import { parseHemisText } from '../../utils/hemisParser';
 import { dataService } from '../../services/dataService';
 import AIGenerator from './AIGenerator';
 
@@ -166,7 +166,7 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
     setIsParsing(true);
     // Simulate slight delay for parser lazy-load feeling
     await new Promise(r => setTimeout(r, 400));
-    const result = parseHemisFormat(rawText);
+    const result = parseHemisText(rawText);
     setParseResult(result);
     setSelectedIndexes(new Set(result.questions.map((_: any, i: number) => i)));
     setIsParsing(false);
@@ -200,20 +200,21 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
     
     const questionsToSave: ExamQuestion[] = parseResult.questions
       .filter((_: any, idx: number) => selectedIndexes.has(idx))
-      .map((q: HemisParsedQuestion) => ({
+      .map((q: any) => ({
         id: Math.random().toString(36).substring(2, 11),
-        text: q.text,
-        options: q.options,
+        text: q.text || '',
+        options: q.options || [],
         correctIndex: q.correctIndex,
         hemisRaw: q.hemisRaw,
-        difficulty: q.difficulty,
-        topic: q.topic,
+        difficulty: q.difficulty || 'orta',
+        topic: q.topic || null,
         source_platform: 'exam',
         createdAt: Date.now(),
         createdBy: user?.uid || 'guest',
         timesUsed: 0,
         timesCorrect: 0,
-        timesIncorrect: 0
+        timesIncorrect: 0,
+        origin: q.origin || 'hemis-import'
       }));
 
     try {
@@ -304,7 +305,7 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
     setSelectedIndexes(next);
   };
 
-  const updateQuestionData = (idx: number, updates: Partial<HemisParsedQuestion>) => {
+  const updateQuestionData = (idx: number, updates: any) => {
     setParseResult((prev: any) => ({
       ...prev,
       questions: prev.questions.map((q: any, i: number) => i === idx ? { ...q, ...updates } : q)
@@ -910,18 +911,12 @@ Xiva
                     </div>
                   </div>
 
-                  {(parseResult.warnings.length > 0 || parseResult.errors.length > 0) && (
+                  {parseResult.errors.length > 0 && (
                     <div className="bg-amber-50 border border-amber-100 p-4 rounded-3xl space-y-2">
                        {parseResult.errors.map((err: any, i: number) => (
                          <div key={i} className="flex gap-2 text-[11px] font-bold text-rose-600 bg-rose-50 p-3 rounded-xl border border-rose-100">
                            <AlertTriangle className="w-4 h-4 shrink-0" />
-                           <p><span className="font-black uppercase">XATO:</span> {err.reason}</p>
-                         </div>
-                       ))}
-                       {parseResult.warnings.map((warn: any, i: number) => (
-                         <div key={i} className="flex gap-2 text-[11px] font-bold text-amber-700 bg-white/50 p-3 rounded-xl">
-                           <AlertTriangle className="w-4 h-4 shrink-0" />
-                           <p><span className="font-black uppercase">OGOHLANTIRISH:</span> {warn}</p>
+                           <p><span className="font-black uppercase">XATO (Liniya {err.line}):</span> {err.message}</p>
                          </div>
                        ))}
                     </div>
@@ -930,7 +925,7 @@ Xiva
 
                 {/* Question Preview Cards */}
                 <div className="space-y-4">
-                   {parseResult.questions.map((q: HemisParsedQuestion, idx: number) => (
+                   {parseResult.questions.map((q: any, idx: number) => (
                      <div 
                        key={idx} 
                        className={`bg-white border p-6 rounded-3xl transition-all shadow-sm ${selectedIndexes.has(idx) ? 'border-emerald-200' : 'border-gray-100 opacity-60'}`}
@@ -945,11 +940,6 @@ Xiva
                          <div className="flex-1 space-y-4">
                            <div className="flex items-start justify-between gap-4">
                              <p className="font-bold text-gray-800 leading-relaxed">{q.text}</p>
-                             {q.warning && (
-                               <div className="p-2 bg-amber-50 text-amber-500 rounded-lg shrink-0" title={q.warning}>
-                                 <AlertTriangle className="w-4 h-4" />
-                               </div>
-                             )}
                            </div>
                            
                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">

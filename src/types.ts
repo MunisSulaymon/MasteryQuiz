@@ -53,7 +53,7 @@ export interface ExamQuestion {
   text: string;
   options: string[];
   correctIndex: number;
-  hemisRaw: string;
+  hemisRaw?: string;
   difficulty: 'oson' | 'orta' | 'qiyin';
   topic: string | null;
   source_platform: 'exam';

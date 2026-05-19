@@ -1,4 +1,4 @@
-import React, { Component, ErrorInfo, ReactNode } from 'react';
+import React, { ErrorInfo, ReactNode } from 'react';
 import { AlertCircle, RotateCcw } from 'lucide-react';
 
 interface Props {
@@ -10,10 +10,11 @@ interface State {
   error?: Error;
 }
 
-export default class ErrorBoundary extends Component<Props, State> {
+export default class ErrorBoundary extends React.Component<Props, State> {
+  state: State = { hasError: false };
+
   constructor(props: Props) {
     super(props);
-    (this as any).state = { hasError: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
@@ -25,7 +26,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   render() {
-    const { hasError, error } = (this as any).state;
+    const { hasError, error } = this.state;
     if (hasError) {
       return (
         <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center p-6">
@@ -53,6 +54,6 @@ export default class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return (this as any).props.children;
+    return this.props.children;
   }
 }
