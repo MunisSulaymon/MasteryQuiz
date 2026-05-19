@@ -159,9 +159,14 @@ class DataService {
     return this.memoryData.questions[packId] || [];
   }
 
-  async saveQuestions(packId: string, questions: ExamQuestion[]) {
+  async addQuestionsToPack(packId: string, questions: ExamQuestion[]) {
     if (!this.memoryData.questions[packId]) this.memoryData.questions[packId] = [];
-    this.memoryData.questions[packId].push(...questions);
+    
+    // Add only new questions or ensure we don't have duplicates by ID if they happen to have them
+    const existingIds = new Set(this.memoryData.questions[packId].map(q => q.id));
+    const newQuestions = questions.filter(q => !existingIds.has(q.id));
+    
+    this.memoryData.questions[packId].push(...newQuestions);
     
     const pack = this.memoryData.packs.find(p => p.id === packId);
     if (pack) pack.questionCount = this.memoryData.questions[packId].length;
@@ -172,9 +177,10 @@ class DataService {
     if (user && db) {
       try {
         const batch = writeBatch(db);
-        questions.forEach(q => {
-          const qRef = doc(collection(db, `users/${user.uid}/packs/${packId}/questions`));
-          batch.set(qRef, { ...q, createdAt: serverTimestamp() });
+        newQuestions.forEach(q => {
+          const qId = q.id || doc(collection(db, 'dummy')).id;
+          const qRef = doc(db, `users/${user.uid}/packs/${packId}/questions/${qId}`);
+          batch.set(qRef, { ...q, id: qId, createdAt: serverTimestamp() });
         });
         if (pack) {
           batch.set(doc(db, `users/${user.uid}/packs/${packId}`), { 
@@ -183,8 +189,35 @@ class DataService {
           }, { merge: true });
         }
         await batch.commit();
+      } catch (e) {
+        console.error("Cloud add questions failed", e);
+      }
+    }
+  }
+
+  async updateQuestion(packId: string, question: ExamQuestion) {
+    if (!question.id) return;
+    
+    const qs = this.memoryData.questions[packId] || [];
+    const index = qs.findIndex(q => q.id === question.id);
+    if (index !== -1) {
+      qs[index] = { ...qs[index], ...question };
+    }
+    this.saveToLocalStorage();
+
+    const user = auth?.currentUser;
+    if (user && db) {
+      try {
+        await setDoc(doc(db, `users/${user.uid}/packs/${packId}/questions/${question.id}`), {
+          ...question,
+          lastUpdated: serverTimestamp()
+        }, { merge: true });
       } catch (e) {}
     }
+  }
+
+  async saveQuestions(packId: string, questions: ExamQuestion[]) {
+    return this.addQuestionsToPack(packId, questions);
   }
 
   // --- Study Progress (Leitner) ---

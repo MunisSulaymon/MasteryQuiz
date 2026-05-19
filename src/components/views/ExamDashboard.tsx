@@ -98,6 +98,7 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
   const [showInstructions, setShowInstructions] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveProgress, setSaveProgress] = useState(0);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
 
   // New Pack Modal
   const [showNewPackModal, setShowNewPackModal] = useState(false);
@@ -218,13 +219,17 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
         setSaveProgress(i);
         await new Promise(r => setTimeout(r, 100));
       }
-      await dataService.saveQuestions(selectedPackId, questionsToSave);
+      await dataService.addQuestionsToPack(selectedPackId, questionsToSave);
+      setToast({ message: `${questionsToSave.length} ta savol saqlandi!`, type: 'success' });
+      setTimeout(() => setToast(null), 3000);
       setRawText('');
       setParseResult(null);
       setActiveTab('questions');
       await fetchPacks(); // refresh counts
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setToast({ message: `Saqlashda xatolik: ${err.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setIsSaving(false);
       setSaveProgress(0);
@@ -235,11 +240,15 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
     if (!selectedPackId) return;
     setIsSaving(true);
     try {
-      await dataService.saveQuestions(selectedPackId, questionsToSave);
+      await dataService.addQuestionsToPack(selectedPackId, questionsToSave);
+      setToast({ message: `${questionsToSave.length} ta savol saqlandi!`, type: 'success' });
+      setTimeout(() => setToast(null), 3000);
       setActiveTab('questions');
       await fetchPacks();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setToast({ message: `Saqlashda xatolik: ${err.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     } finally {
       setIsSaving(false);
     }
@@ -248,25 +257,30 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
   const handleReviewQuestion = async (q: ExamQuestion) => {
     if (!q.id || !selectedPackId) return;
     try {
-      // Small update logic
       const updated = { ...q, aiReviewed: true };
-      await dataService.saveQuestions(selectedPackId, [updated]); // Currently overwrites or appends? 
-      // dataService.saveQuestions currently appends. I might need an update method in dataService.
+      await dataService.updateQuestion(selectedPackId, updated);
       setQuestions(prev => prev.map(item => item.id === q.id ? { ...item, aiReviewed: true } : item));
-    } catch (e) {
+      setToast({ message: "Savol tasdiqlandi!", type: 'success' });
+      setTimeout(() => setToast(null), 2000);
+    } catch (e: any) {
       console.error(e);
+      setToast({ message: `Xatolik: ${e.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
   const handleDeleteQuestion = async (qId: string) => {
     if (!selectedPackId || !window.confirm("Savolni o'chirmoqchimisiz?")) return;
     try {
-      // dataService should have delete method for questions
-      // I'll add it to dataService in next step
+      await dataService.deleteQuestion(selectedPackId, qId);
       setQuestions(prev => prev.filter(q => q.id !== qId));
       await fetchPacks(); // refresh count
-    } catch (e) {
+      setToast({ message: "Savol o'chirildi", type: 'success' });
+      setTimeout(() => setToast(null), 2000);
+    } catch (e: any) {
       console.error(e);
+      setToast({ message: "O'chirishda xatolik", type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
@@ -997,6 +1011,23 @@ Xiva
           </div>
         )}
       </main>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div 
+            initial={{ opacity: 0, y: 50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: 50, x: '-50%' }}
+            className={`fixed bottom-24 left-1/2 z-[100] px-6 py-4 rounded-2xl shadow-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 border ${
+              toast.type === 'success' ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-rose-600 text-white border-rose-500'
+            }`}
+          >
+            {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+            {toast.message}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* New Pack Modal */}
       <AnimatePresence>
