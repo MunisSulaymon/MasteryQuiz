@@ -55,6 +55,28 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
 
   const [selectedDifficulty, setSelectedDifficulty] = useState('orta');
   const [selectedLanguage, setSelectedLanguage] = useState('Uzbek');
+  const [debugInfo, setDebugInfo] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Debug test for POST requests
+    const testPost = async () => {
+      try {
+        console.log("TEST: Calling /api/test...");
+        const response = await fetch('/api/test', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ test: true })
+        });
+        const data = await response.json();
+        console.log("TEST RESULT:", data);
+        setDebugInfo(`Test API: ${response.status} ${JSON.stringify(data)}`);
+      } catch (err: any) {
+        console.error("TEST FAILED:", err);
+        setDebugInfo(`Test API Failed: ${err.message}`);
+      }
+    };
+    testPost();
+  }, []);
 
   const handleGenerate = async (useCached = false) => {
     if (!useCached && (!sourceText || sourceText.length < 50)) {
@@ -218,6 +240,9 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
                 <div>
                   <h2 className="text-xl font-black text-gray-900 italic tracking-tighter">AI Savol Generatori</h2>
                   <p className="text-xs text-gray-400 font-bold uppercase tracking-widest">Matndan avtomatik savol yaratish</p>
+                  {debugInfo && (
+                    <p className="text-[10px] text-indigo-500 font-mono mt-1 opacity-50">{debugInfo}</p>
+                  )}
                 </div>
               </div>
 
