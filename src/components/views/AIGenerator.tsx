@@ -53,9 +53,12 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [cachedResult, setCachedResult] = useState<any>(null);
 
+  const [selectedDifficulty, setSelectedDifficulty] = useState('orta');
+  const [selectedLanguage, setSelectedLanguage] = useState('Uzbek');
+
   const handleGenerate = async (useCached = false) => {
-    if (!useCached && (!sourceText || sourceText.length < 100)) {
-      setError("Matn juda qisqa. Kamida 100 ta belgi kerak.");
+    if (!useCached && (!sourceText || sourceText.length < 50)) {
+      setError("Matn juda qisqa. Kamida 50 ta belgi kerak.");
       return;
     }
 
@@ -68,29 +71,28 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
     setIsGenerating(true);
     setError(null);
     try {
-      console.log("Calling /api/generate-questions with count:", questionCount);
+      console.log("Calling /api/generate-questions...");
       const response = await fetch('/api/generate-questions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           text: sourceText, 
-          count: questionCount,
           numQuestions: questionCount,
-          difficulty: 'orta',
-          language: 'Uzbek'
+          difficulty: selectedDifficulty,
+          language: selectedLanguage
         })
       });
 
-      const text = await response.text();
+      const resText = await response.text();
       console.log("API Response status:", response.status);
       
       if (!response.ok) {
-        console.error("API Error Response:", text);
+        console.error("API Error Response:", resText);
         let errorData;
         try {
-          errorData = JSON.parse(text);
+          errorData = JSON.parse(resText);
         } catch (e) {
-          throw new Error(`Server xatosi (${response.status}): ${text.substring(0, 100) || 'Bo\'sh xabar'}`);
+          throw new Error(`Server xatosi (${response.status}): ${resText.substring(0, 100) || 'Bo\'sh xabar'}`);
         }
         
         const internalError = errorData.error || "";
@@ -103,16 +105,16 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
 
       let data;
       try {
-        data = JSON.parse(text);
+        data = JSON.parse(resText);
       } catch (e) {
-        console.error("Failed to parse JSON response:", text);
+        console.error("Failed to parse JSON response:", resText);
         throw new Error("Serverdan noto'g'ri formatda javob keldi. Iltimos qaytadan urinib ko'ring.");
       }
 
       const enrichedQuestions = data.questions.map((q: any) => ({
         ...q,
         origin: 'ai-generated',
-        sourceText: sourceText.substring(0, 500), // Store preview
+        sourceText: sourceText.substring(0, 500),
         createdAt: new Date().toISOString(),
         timesUsed: 0,
         timesCorrect: 0,
@@ -120,11 +122,20 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
         aiReviewed: false
       }));
 
-      const finalResult = { questions: enrichedQuestions, summary: data.summary };
+      // Calculate summary if missing from API
+      const summary = data.summary || {
+        total: enrichedQuestions.length,
+        difficultyCounts: {
+          oson: enrichedQuestions.filter((q: any) => q.difficulty === 'oson').length,
+          orta: enrichedQuestions.filter((q: any) => q.difficulty === 'orta').length || enrichedQuestions.length,
+          qiyin: enrichedQuestions.filter((q: any) => q.difficulty === 'qiyin').length
+        }
+      };
+
+      const finalResult = { questions: enrichedQuestions, summary };
       setGeneratedResult(finalResult);
       setSelectedIndexes(new Set(enrichedQuestions.map((_: any, i: number) => i)));
 
-      // Save to cache
       const hash = getHash(sourceText);
       localStorage.setItem(`ai_cache_${hash}`, JSON.stringify({
         data: finalResult,
@@ -223,8 +234,8 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-6 bg-gray-50 rounded-3xl border border-gray-100">
-                  <div className="w-full sm:w-auto">
+                <div className="flex flex-wrap items-center justify-between gap-6 p-6 bg-gray-50 rounded-3xl border border-gray-100">
+                  <div className="flex-1 min-w-[200px]">
                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Savollar soni</label>
                     <div className="flex items-center gap-3">
                       <input 
@@ -233,9 +244,36 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
                         max="30" 
                         value={questionCount}
                         onChange={(e) => setQuestionCount(parseInt(e.target.value))}
-                        className="accent-indigo-600"
+                        className="w-full accent-indigo-600"
                       />
                       <span className="text-sm font-black text-indigo-600 w-8">{questionCount}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Qiyinchilik</label>
+                      <select 
+                        value={selectedDifficulty}
+                        onChange={(e) => setSelectedDifficulty(e.target.value)}
+                        className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      >
+                        <option value="oson">Oson</option>
+                        <option value="orta">O'rta</option>
+                        <option value="qiyin">Qiyin</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest block mb-1">Til</label>
+                      <select 
+                        value={selectedLanguage}
+                        onChange={(e) => setSelectedLanguage(e.target.value)}
+                        className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-500/20"
+                      >
+                        <option value="Uzbek">O'zbek</option>
+                        <option value="English">English</option>
+                        <option value="Russian">Русский</option>
+                      </select>
                     </div>
                   </div>
 
@@ -251,7 +289,7 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
                     )}
                     <button 
                       onClick={() => handleGenerate()}
-                      disabled={isGenerating || sourceText.length < 100}
+                      disabled={isGenerating || sourceText.length < 50}
                       className="flex-1 sm:flex-none px-10 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-indigo-100"
                     >
                       {isGenerating ? (

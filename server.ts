@@ -14,79 +14,78 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
+  // Basic middleware
   app.use(cors());
   app.use(express.json());
 
-  console.log("Gemini API Key status:", GEMINI_KEY ? `Exists (starts with ${GEMINI_KEY.substring(0, 4)})` : "MISSING");
-
-  const genAI = GEMINI_KEY ? new GoogleGenerativeAI(GEMINI_KEY) : null;
-
+  // Global logger
   app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
     next();
   });
 
+  const KEY = process.env.GEMINI_API_KEY;
+  console.log("Gemini API Key status:", KEY ? `Exists (starts with ${KEY.substring(0, 4)})` : "MISSING");
+  const genAI = KEY ? new GoogleGenerativeAI(KEY) : null;
+
   // API Routes
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", keyExists: !!GEMINI_KEY });
+    res.json({ status: "ok", keyExists: !!KEY });
   });
 
-  // POST /api/generate-questions
-  app.post('/api/generate-questions', express.json(), async (req, res) => {
-    console.log('=== GENERATE ROUTE HIT ===');
-    console.log('Method:', req.method);
-    console.log('Body:', JSON.stringify(req.body).substring(0, 200));
+  // Explicitly handle ALL methods for this route to catch 405s
+  app.all('/api/generate-questions', async (req, res) => {
+    console.log(`=== ROUTE HIT: ${req.method} /api/generate-questions ===`);
     
+    if (req.method === 'OPTIONS') {
+      return res.status(200).end();
+    }
+
+    if (req.method !== 'POST') {
+      console.warn(`WARNING: Received ${req.method} instead of POST`);
+      return res.status(405).json({ error: "Bu endpoint faqat POST so'rovlarini qabul qiladi." });
+    }
+
+    const { text, numQuestions, difficulty, language } = req.body;
+    console.log('Request body keys:', Object.keys(req.body || {}));
+
     try {
-      const { text, count, numQuestions, difficulty, language } = req.body;
-      const targetCount = count || numQuestions || 5;
+      const targetCount = numQuestions || 5;
       
-      console.log(`Processing generation for ${targetCount} questions. Language: ${language}, Difficulty: ${difficulty}`);
-      
-      // Validate input
       if (!text || text.trim().length < 50) {
-        return res.status(400).json({ 
-          error: 'Matn juda qisqa. Kamida 50 ta belgi kerak.' 
-        });
+        return res.status(400).json({ error: 'Matn juda qisqa. Kamida 50 ta belgi kerak.' });
       }
       
-      // Check API key
-      if (!GEMINI_KEY) {
-        console.error('GEMINI_API_KEY is not set');
-        return res.status(500).json({ 
-          error: 'API kaliti sozlanmagan' 
-        });
-      }
-      
-      console.log('API Key starts with:', GEMINI_KEY.substring(0, 4));
-      
-      if (!genAI) {
-        return res.status(500).json({ error: 'AI servisi tayyor emas' });
+      if (!KEY || !genAI) {
+        return res.status(500).json({ error: 'API kaliti sozlanmagan' });
       }
 
       const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
       
-      const prompt = `Generate exactly ${targetCount} multiple-choice questions from the following text in HEMIS format.
-Language: ${language || 'Uzbek'}.
-Difficulty: ${difficulty || 'medium'}.
+      const prompt = `You are an expert Uzbek professor creating multiple-choice questions for university exams (HEMIS format). Generate exactly ${targetCount} questions from the following text. 
+Difficulty: ${difficulty || 'Normal'}. Language: ${language || 'Uzbek'}.
 
-HEMIS format rules:
-1. Each question block is separated by ++++.
-2. Inside each block, the question stem and each option are separated by ====.
-3. The CORRECT option MUST start with a # symbol.
-4. Provide 4 options for each question.
+Output format exactly like this for EACH question:
 
-Example:
-Savol matni bu yerda
+[Question Stem Here]
 ====
-# To'g'ri javob
+# Correct option
 ====
-Noto'g'ri javob 1
+Distractor 1
 ====
-Noto'g'ri javob 2
+Distractor 2
 ====
-Noto'g'ri javob 3
+Distractor 3
 ++++
+
+Rules:
+1. Each question block MUST end with ++++.
+2. Inside each block, the question stem and each option are separated by ====.
+3. Exactly 4 options per question, only one correct (marked with # at the start).
+4. Distractors must be plausible and from the same topic.
+5. Vary the position of the correct answer.
+6. Write in proper academic Uzbek.
+7. Use straight apostrophes (') for o' and g'.
 
 Text to process:
 ${text}`;
@@ -115,16 +114,11 @@ ${text}`;
       return res.json({ 
         success: true, 
         questions,
-        count: questions.length,
-        summary: {
-          total: questions.length,
-          difficultyCounts: { oson: questions.length, orta: 0, qiyin: 0 } // Mocked as the parser doesn't extract this
-        }
+        count: questions.length 
       });
       
     } catch (error: any) {
       console.error('Gemini error:', error.message);
-      console.error('Full error:', JSON.stringify(error, null, 2));
       return res.status(500).json({ 
         error: 'Generatsiya xatosi: ' + error.message 
       });
@@ -141,25 +135,21 @@ ${text}`;
       if (parts.length < 2) continue;
       
       const stem = parts[0];
-      const rawOptions = parts.slice(1);
-      
-      // Find the correct option (starts with #)
-      const correctIndex = rawOptions.findIndex(o => o.startsWith('#'));
+      const options = parts.slice(1);
+      const correctIndex = options.findIndex(o => o.startsWith('#'));
       
       if (correctIndex === -1) continue;
       
       // Clean up options
-      const options = rawOptions.map(o => o.replace(/^#\s*/, ''));
+      const cleanedOptions = options.map(o => o.replace(/^#\s*/, ''));
       
       questions.push({
         text: stem,
-        options: options,
+        options: cleanedOptions,
         correctIndex: correctIndex,
-        difficulty: 'orta', // Default
-        bloomsLevel: 'Understand', // Default
-        topic: 'General', // Default
-        confidenceScore: 85,
-        sourceReference: stem.substring(0, 80)
+        difficulty: 'orta',
+        bloomsLevel: 'Understand',
+        topic: 'General'
       });
     }
     
