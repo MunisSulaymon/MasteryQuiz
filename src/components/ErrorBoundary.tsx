@@ -1,55 +1,46 @@
-import React, { ErrorInfo, ReactNode } from 'react';
-import { AlertCircle, RotateCcw } from 'lucide-react';
+import React, { Component, ErrorInfo, ReactNode } from 'react';
 
 interface Props {
-  children?: ReactNode;
+  children: ReactNode;
+  fallback?: ReactNode;
 }
 
 interface State {
   hasError: boolean;
-  error?: Error;
+  error: Error | null;
 }
 
-export default class ErrorBoundary extends React.Component<Props, State> {
-  state: State = { hasError: false };
-
+class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
+    this.state = { hasError: false, error: null };
   }
 
   static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, info);
   }
 
   render() {
-    const { hasError, error } = this.state;
-    if (hasError) {
-      return (
-        <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center p-6">
-          <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl border border-rose-100 text-center">
-            <div className="w-20 h-20 bg-rose-50 rounded-3xl flex items-center justify-center text-rose-600 mx-auto mb-6">
-              <AlertCircle className="w-10 h-10" />
-            </div>
-            <h1 className="text-2xl font-black text-gray-900 mb-4 italic tracking-tight">Nimadir xato ketdi</h1>
-            <p className="text-gray-400 font-medium mb-8 leading-relaxed">
-              Ilova ishlashida kutilmagan xatolik yuz berdi. Iltimos, sahifani yangilab ko'ring.
-            </p>
-            <div className="bg-gray-50 rounded-2xl p-4 mb-8 text-left">
-              <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Xatolik tafsiloti:</p>
-              <p className="text-[11px] font-mono text-rose-600 break-all">{error?.message}</p>
-            </div>
-            <button
-              onClick={() => window.location.reload()}
-              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Sahifani yangilash
-            </button>
-          </div>
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="flex flex-col items-center justify-center min-h-screen p-4">
+          <h1 className="text-xl font-bold mb-2">Something went wrong</h1>
+          <p className="text-gray-600 mb-4">
+            {this.state.error?.message || 'Unknown error'}
+          </p>
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              window.location.reload();
+            }}
+          >
+            Reload page
+          </button>
         </div>
       );
     }
@@ -57,3 +48,5 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     return this.props.children;
   }
 }
+
+export default ErrorBoundary;
