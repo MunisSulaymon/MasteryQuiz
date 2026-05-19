@@ -14,7 +14,7 @@ import {
   serverTimestamp 
 } from 'firebase/firestore';
 
-const STORAGE_KEY = 'masteryquiz_data';
+const STORAGE_KEY = 'masteryquiz_guest_data';
 
 interface AppData {
   packs: QuizPack[];
@@ -154,17 +154,35 @@ class DataService {
           this.saveToLocalStorage();
           return cloudQs;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Cloud fetch questions failed", e);
+      }
     }
-    return this.memoryData.questions[packId] || [];
+    const local = this.memoryData.questions[packId] || [];
+    // Ensure all have IDs
+    let changed = false;
+    local.forEach(q => {
+      if (!q.id) {
+        q.id = Math.random().toString(36).substring(2, 11);
+        changed = true;
+      }
+    });
+    if (changed) this.saveToLocalStorage();
+    return local;
   }
 
   async addQuestionsToPack(packId: string, questions: ExamQuestion[]) {
     if (!this.memoryData.questions[packId]) this.memoryData.questions[packId] = [];
     
-    // Add only new questions or ensure we don't have duplicates by ID if they happen to have them
+    // Ensure all questions have IDs before processing
+    const processedQuestions = questions.map(q => ({
+      ...q,
+      id: q.id || Math.random().toString(36).substring(2, 11)
+    }));
+    
+    // Add only new questions or ensure we don't have duplicates by ID
     const existingIds = new Set(this.memoryData.questions[packId].map(q => q.id));
-    const newQuestions = questions.filter(q => !existingIds.has(q.id));
+    const newQuestions = processedQuestions.filter(q => !existingIds.has(q.id));
     
     this.memoryData.questions[packId].push(...newQuestions);
     
@@ -178,9 +196,8 @@ class DataService {
       try {
         const batch = writeBatch(db);
         newQuestions.forEach(q => {
-          const qId = q.id || doc(collection(db, 'dummy')).id;
-          const qRef = doc(db, `users/${user.uid}/packs/${packId}/questions/${qId}`);
-          batch.set(qRef, { ...q, id: qId, createdAt: serverTimestamp() });
+          const qRef = doc(db, `users/${user.uid}/packs/${packId}/questions/${q.id}`);
+          batch.set(qRef, { ...q, createdAt: serverTimestamp() });
         });
         if (pack) {
           batch.set(doc(db, `users/${user.uid}/packs/${packId}`), { 
@@ -212,7 +229,9 @@ class DataService {
           ...question,
           lastUpdated: serverTimestamp()
         }, { merge: true });
-      } catch (e) {}
+      } catch (e) {
+        console.error("Cloud update question failed", question.id, e);
+      }
     }
   }
 
@@ -247,7 +266,9 @@ class DataService {
         });
         
         await batch.commit();
-      } catch (e) {}
+      } catch (e) {
+        console.error("Cloud save study state failed", packId, e);
+      }
     }
   }
 
@@ -274,7 +295,9 @@ class DataService {
           this.saveToLocalStorage();
           return state;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Cloud get study state failed", packId, e);
+      }
     }
     return this.memoryData.packData[packId] || null;
   }
@@ -298,7 +321,9 @@ class DataService {
           this.saveToLocalStorage();
           return cloudHistory;
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Cloud get exam history failed", e);
+      }
     }
     return this.memoryData.examHistory || [];
   }
@@ -323,7 +348,9 @@ class DataService {
           ...result,
           createdAt: serverTimestamp()
         }, { merge: true });
-      } catch (e) {}
+      } catch (e) {
+        console.error("Cloud save exam result failed", result.id, e);
+      }
     }
   }
 
@@ -337,13 +364,37 @@ class DataService {
     if (user && db) {
       try {
         await deleteDoc(doc(db, `users/${user.uid}/packs/${packId}/questions/${qId}`));
-      } catch (e) {}
+      } catch (e) {
+        console.error("Cloud delete question failed", qId, e);
+      }
     }
   }
 
   async findWeakPackByExamId(examId: string): Promise<QuizPack | null> {
     const packs = await this.getPacks();
     return packs.find(p => (p as any).examId === examId) || null;
+  }
+
+  // --- Unified Loading for Study Mode ---
+  async loadAllQuestionsForStudy(packId: string): Promise<Question[]> {
+    const pack = this.memoryData.packs.find(p => p.id === packId);
+    const discreteQs = await this.getQuestions(packId);
+    
+    const questions: Question[] = [];
+    
+    // 1. Convert discrete ExamQuestions to Question format
+    discreteQs.forEach((eq: ExamQuestion) => {
+      questions.push({
+        id: eq.id || Math.random().toString(36).substring(2, 11),
+        stem: eq.text,
+        options: eq.options,
+        correctAnswer: eq.options[eq.correctIndex],
+        box: 1,
+        wrongCount: 0
+      });
+    });
+
+    return questions;
   }
 
   // --- Sync & Auth ---

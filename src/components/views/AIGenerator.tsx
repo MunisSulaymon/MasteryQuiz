@@ -113,6 +113,7 @@ export default function AIGenerator({ onSave, isLoading: globalLoading }: AIGene
 
       const enrichedQuestions = data.questions.map((q: any) => ({
         ...q,
+        id: Math.random().toString(36).substring(2, 11),
         origin: 'ai-generated',
         sourceText: sourceText.substring(0, 500),
         createdAt: new Date().toISOString(),

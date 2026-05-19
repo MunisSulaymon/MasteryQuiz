@@ -13,15 +13,6 @@ import { Question, QuizSet, AppView, QuizSession, QuizPack, SyncStatus } from '.
 import { parseQuestions, splitIntoSets, parseSingleQuestion } from './utils';
 import { auth } from './lib/firebase';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut, User } from 'firebase/auth';
-import { 
-  loadUserData, 
-  createPack,
-  updatePack,
-  deletePack,
-  loadPackData,
-  syncSessionData,
-  syncGuestDataToFirestore
-} from './services/quizService';
 import { dataService } from './services/dataService';
 import { RefreshCcw, Check, Cloud, CloudOff, Info, X } from 'lucide-react';
 
@@ -109,18 +100,35 @@ function AppContent() {
     setSyncStatus('syncing');
     try {
       // Get state and questions
-      const [questions, data] = await Promise.all([
-        dataService.getQuestions(pack.id),
+      const [allLoadedQuestions, data] = await Promise.all([
+        dataService.loadAllQuestionsForStudy(pack.id),
         dataService.getStudyState(pack.id)
       ]);
       
       setInputText(pack.inputText || '');
       setSetSize(pack.setSize || 20);
       
-      const parsed = parseQuestions(pack.inputText || '');
-      const questionsWithState = parsed.map(q => {
-        // Try to find state in the study state map
-        const stateMap = data?.questionsState ? new Map<string, { box: number, wrongCount: number }>(data.questionsState as any) : null;
+      const parsedFromText = parseQuestions(pack.inputText || '');
+      
+      // Merge: unique by stem or ID
+      const questionMap = new Map<string, Question>();
+      
+      // Add discrete questions first (usually higher quality/stable)
+      allLoadedQuestions.forEach(q => questionMap.set(q.id, q));
+      
+      // Add parsed questions (only if same stem doesn't exist to avoid duplicates)
+      parsedFromText.forEach(pq => {
+        const fingerPrint = pq.stem.trim().toLowerCase();
+        const exists = Array.from(questionMap.values()).some(v => v.stem.trim().toLowerCase() === fingerPrint);
+        if (!exists) {
+          questionMap.set(pq.id, pq);
+        }
+      });
+
+      const mergedQuestions = Array.from(questionMap.values());
+      const stateMap = data?.questionsState ? new Map<string, { box: number, wrongCount: number }>(data.questionsState as any) : null;
+
+      const questionsWithState = mergedQuestions.map(q => {
         const state = stateMap?.get(q.id);
         if (state) {
           return { ...q, box: state.box as 1 | 2 | 3, wrongCount: state.wrongCount };
@@ -207,8 +215,9 @@ function AppContent() {
 
   const handleExtendPack = async (pack: QuizPack) => {
     const newDeleteAt = Date.now() + (30 * 24 * 60 * 60 * 1000);
-    await updatePack(pack.id, { deleteAt: newDeleteAt });
-    setPacks(prev => prev.map(p => p.id === pack.id ? { ...p, deleteAt: newDeleteAt } : p));
+    const updated = { ...pack, deleteAt: newDeleteAt };
+    await dataService.savePack(updated);
+    setPacks(prev => prev.map(p => p.id === pack.id ? updated : p));
   };
 
   useEffect(() => {
@@ -355,7 +364,15 @@ function AppContent() {
       setAllQuestions(questions);
       
       // Sync initial pack info
-      await syncSessionData(activePack.id, questions, setsMastery, inputText, setSize);
+      const studyData = {
+        questionsState: questions.map(q => [q.id, { box: q.box, wrongCount: q.wrongCount }]),
+        setsMastery: Array.from(setsMastery.entries()),
+      };
+      await dataService.saveStudyState(activePack.id, studyData);
+      
+      // Update pack's inputText and questionCount
+      const updatedPack = { ...activePack, inputText, setSize, questionCount: questions.length, lastStudied: Date.now() };
+      await dataService.savePack(updatedPack);
       
       setView('selection');
     } catch (err) {
