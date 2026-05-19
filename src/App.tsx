@@ -89,10 +89,12 @@ function AppContent() {
     try {
       const packs = await dataService.getPacks();
       setPacks(packs);
-      // Only reset/redirect if we're on landing and there are packs, or if it's explicitly needed
-      // Avoid resetting if we're already deeper in the app or already on packs view
-      if (currentEntry.view === 'landing' && packs.length > 0) {
-         reset('packs');
+      
+      // If we are at the very beginning (stack depth 1) and on landing,
+      // and we have packs, we probably want to show packs view.
+      if (navState.stack.length === 1 && currentEntry.view === 'landing' && packs.length > 0) {
+         console.log("[APP] Initial load: auto-pushing to packs view");
+         push('packs');
       }
       setSyncStatus(user ? 'synced' : 'offline');
     } catch (err) {
@@ -101,7 +103,7 @@ function AppContent() {
     } finally {
       setIsDataLoading(false);
     }
-  }, [user, currentEntry.view]);
+  }, [user, currentEntry.view, navState.stack.length, push]);
 
   const handleSelectPack = useCallback(async (pack: QuizPack) => {
     setActivePack(pack);

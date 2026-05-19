@@ -38,9 +38,9 @@ function navigationReducer(state: NavigationState, action: NavigationAction): Na
       if (state.stack.length <= 1) return state;
       return { ...state, stack: state.stack.slice(0, -1) };
     case 'REPLACE':
-      const newStack = [...state.stack];
-      newStack[newStack.length - 1] = action.entry;
-      return { ...state, stack: newStack };
+      const replaceStack = [...state.stack];
+      replaceStack[replaceStack.length - 1] = action.entry;
+      return { ...state, stack: replaceStack };
     case 'RESET':
       return { stack: [action.entry] };
     default:
@@ -78,19 +78,11 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     if (!(await checkGuards())) return;
     dispatch({ type: 'PUSH', entry: { view, params, title } });
     window.history.pushState({ view, params, title }, '', `#/${view}`);
-  }, []);
+  }, [state.stack.length]);
 
   const pop = useCallback(async () => {
-    console.log("Navigation pop called. Current stack length:", state.stack.length);
-    if (state.stack.length <= 1) {
-      console.warn("Stack length <= 1, cannot pop.");
-      return;
-    }
-    if (!(await checkGuards())) {
-      console.warn("Pop blocked by guards.");
-      return;
-    }
-    console.log("Popping stack entry...");
+    if (state.stack.length <= 1) return;
+    if (!(await checkGuards())) return;
     dispatch({ type: 'POP' });
     window.history.back();
   }, [state.stack.length]);
@@ -109,20 +101,24 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
-      // If history is popped, we should update our stack
-      // This is a bit tricky with a stack-based custom reducer
-      // For simplicity, if we detect browser back, we just pop or reset based on hash
       const hash = window.location.hash.replace('#/', '');
-      if (hash) {
-        dispatch({ type: 'RESET', entry: { view: hash as AppView, params: event.state?.params } });
+      const targetView = (hash || 'landing') as AppView;
+
+      // Avoid unnecessary state updates if we're already on the right view at the top of the stack
+      const currentView = state.stack[state.stack.length - 1].view;
+      if (currentView === targetView) return;
+
+      // Check if target is the previous one in stack (meaning it was probably a back action)
+      if (state.stack.length > 1 && state.stack[state.stack.length - 2].view === targetView) {
+        dispatch({ type: 'POP' });
       } else {
-        dispatch({ type: 'RESET', entry: { view: 'landing' } });
+        dispatch({ type: 'RESET', entry: { view: targetView, params: event.state?.params } });
       }
     };
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [state.stack]);
 
   // Sync initial hash
   useEffect(() => {
