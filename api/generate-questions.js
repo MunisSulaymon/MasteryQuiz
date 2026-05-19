@@ -33,8 +33,7 @@ export default async function handler(req, res) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-
+    
     const targetCount = numQuestions || 5;
     const targetDifficulty = difficulty || 'Normal';
     const targetLanguage = language || 'Uzbek';
@@ -70,8 +69,38 @@ Rules:
 Text to process:
 ${text}`;
 
-    console.log(`Calling Gemini for ${targetCount} questions...`);
-    const result = await model.generateContent(prompt);
+    const modelsToTry = [
+      'gemini-1.5-flash-latest',
+      'gemini-1.5-flash-001',
+      'gemini-1.5-pro',
+      'gemini-2.0-flash'
+    ];
+
+    let result = null;
+    let lastError = null;
+    let successfulModel = '';
+
+    for (const modelName of modelsToTry) {
+      try {
+        console.log(`Attempting generation with model: ${modelName}`);
+        const model = genAI.getGenerativeModel({ model: modelName });
+        result = await model.generateContent(prompt);
+        if (result && result.response) {
+          successfulModel = modelName;
+          console.log(`Success with model: ${modelName}`);
+          break;
+        }
+      } catch (err) {
+        console.warn(`Model ${modelName} failed:`, err.message);
+        lastError = err;
+        // Continue to next model if this one failed (e.g. 404 or other transient error)
+      }
+    }
+
+    if (!result) {
+      throw new Error(`Barcha AI modellari xatolik berdi: ${lastError?.message || 'Noma\'lum xatolik'}`);
+    }
+
     const responseText = result.response.text();
 
     if (!responseText || responseText.trim().length === 0) {

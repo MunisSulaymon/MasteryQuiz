@@ -31,7 +31,6 @@ export default defineConfig(({ mode }) => {
                   }
 
                   const genAI = new GoogleGenerativeAI(apiKey);
-                  const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
                   
                   const targetCount = numQuestions || 5;
                   const prompt = `Generate exactly ${targetCount} multiple-choice questions from the following text. Difficulty: ${difficulty || 'Normal'}. Language: ${language || 'Uzbek'}.
@@ -50,7 +49,35 @@ TOPIC: General
 ++++
 (etc)`;
 
-                  const result = await model.generateContent(prompt);
+                  const modelsToTry = [
+                    'gemini-1.5-flash-latest',
+                    'gemini-1.5-flash-001',
+                    'gemini-1.5-pro',
+                    'gemini-2.0-flash'
+                  ];
+
+                  let result = null;
+                  let lastError = null;
+
+                  for (const modelName of modelsToTry) {
+                    try {
+                      console.log(`[Dev API] Attempting model: ${modelName}`);
+                      const model = genAI.getGenerativeModel({ model: modelName });
+                      result = await model.generateContent(prompt);
+                      if (result && result.response) {
+                        console.log(`[Dev API] Success with ${modelName}`);
+                        break;
+                      }
+                    } catch (err: any) {
+                      console.warn(`[Dev API] Model ${modelName} failed:`, err.message);
+                      lastError = err;
+                    }
+                  }
+
+                  if (!result) {
+                    throw new Error(`Fallback failed: ${lastError?.message}`);
+                  }
+
                   const responseText = result.response.text();
                   
                   // Simple parser for the preview
