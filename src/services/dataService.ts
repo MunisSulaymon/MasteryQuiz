@@ -354,6 +354,39 @@ class DataService {
     }
   }
 
+  async saveQuestionsBatch(packId: string, questions: ExamQuestion[]) {
+    // Update local memory
+    this.memoryData.questions[packId] = [...questions];
+    const pack = this.memoryData.packs.find(p => p.id === packId);
+    if (pack) pack.questionCount = questions.length;
+    this.saveToLocalStorage();
+
+    const user = auth?.currentUser;
+    if (user && db) {
+      try {
+        const batch = writeBatch(db);
+        questions.forEach(q => {
+          const qRef = doc(db, `users/${user.uid}/packs/${packId}/questions/${q.id}`);
+          batch.set(qRef, { ...q, lastUpdated: serverTimestamp() }, { merge: true });
+        });
+        if (pack) {
+          batch.set(doc(db, `users/${user.uid}/packs/${packId}`), { 
+            questionCount: pack.questionCount,
+            lastUpdated: serverTimestamp() 
+          }, { merge: true });
+        }
+        await batch.commit();
+      } catch (e) {
+        console.error("Cloud batch save failed", e);
+        throw e;
+      }
+    }
+  }
+
+  async getQuestionsByPack(packId: string): Promise<ExamQuestion[]> {
+    return this.getQuestions(packId);
+  }
+
   async deleteQuestion(packId: string, qId: string): Promise<void> {
     if (this.memoryData.questions[packId]) {
       this.memoryData.questions[packId] = this.memoryData.questions[packId].filter(q => q.id !== qId);

@@ -36,6 +36,7 @@ import { useNavigation } from '../../context/NavigationContext';
 import { parseHemisText } from '../../utils/hemisParser';
 import { dataService } from '../../services/dataService';
 import AIGenerator from './AIGenerator';
+import ManualHemISEditorPage from './ManualHemISEditor/ManualHemISEditorPage';
 
 interface ExamDashboardProps {
   user: User | null;
@@ -46,7 +47,7 @@ interface ExamDashboardProps {
 
 export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }: ExamDashboardProps) {
   const { push, pop } = useNavigation();
-  const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam' | 'history' | 'ai'>('questions');
+  const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam' | 'history' | 'ai' | 'manual'>('questions');
   const [packs, setPacks] = useState<QuizPack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string>('');
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
@@ -423,6 +424,12 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
             className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'ai' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             AI Gen
+          </button>
+          <button 
+            onClick={() => setActiveTab('manual')}
+            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            Qo'lda
           </button>
         </div>
       </div>
@@ -826,6 +833,12 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
           </div>
         ) : activeTab === 'ai' ? (
           <AIGenerator onSave={handleSaveAIGenerated} isLoading={isSaving} />
+        ) : activeTab === 'manual' ? (
+          <ManualHemISEditorPage 
+            packId={selectedPackId} 
+            packTitle={packs.find(p => p.id === selectedPackId)?.name || ''} 
+            onRefresh={fetchQuestions}
+          />
         ) : (
           <div className="space-y-6">
             {/* Instruction Card */}
