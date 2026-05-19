@@ -8,19 +8,28 @@ import {
   RotateCcw, 
   Brain, 
   AlertTriangle,
-  Info
+  Info,
+  Save,
+  CheckCircle2
 } from 'lucide-react';
 import { formatPackToHemis } from '../../utils/hemisFormatter';
 import { ExamQuestion } from '../../types';
 
-export default function HEMISTextGenerator() {
+interface HEMISTextGeneratorProps {
+  onSave?: (questions: ExamQuestion[]) => Promise<void>;
+  isLoading?: boolean;
+}
+
+export default function HEMISTextGenerator({ onSave, isLoading: globalLoading }: HEMISTextGeneratorProps) {
   const [sourceText, setSourceText] = useState('');
   const [questionCount, setQuestionCount] = useState(10);
   const [difficulty, setDifficulty] = useState('orta');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generatedText, setGeneratedText] = useState<string>('');
+  const [generatedQuestions, setGeneratedQuestions] = useState<ExamQuestion[]>([]);
   const [copied, setCopied] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
 
   const handleGenerate = async () => {
     if (!sourceText || sourceText.length < 50) {
@@ -58,9 +67,19 @@ export default function HEMISTextGenerator() {
       const data = await response.json();
       const questions = data.questions as ExamQuestion[];
       
+      const enrichedQuestions = questions.map(q => ({
+        ...q,
+        id: Math.random().toString(36).substring(2, 11),
+        origin: 'ai-generated' as const,
+        createdAt: new Date().toISOString()
+      }));
+
+      setGeneratedQuestions(enrichedQuestions);
+      
       // Convert questions to HEMIS raw format
-      const hemisText = formatPackToHemis(questions);
+      const hemisText = formatPackToHemis(enrichedQuestions);
       setGeneratedText(hemisText);
+      setIsSaved(false);
     } catch (err: any) {
       console.error("HEMIS Generation failed:", err);
       setError(err.message);
@@ -79,7 +98,16 @@ export default function HEMISTextGenerator() {
   const handleReset = () => {
     setSourceText('');
     setGeneratedText('');
+    setGeneratedQuestions([]);
     setError(null);
+    setIsSaved(false);
+  };
+
+  const handleSave = async () => {
+    if (onSave && generatedQuestions.length > 0) {
+      await onSave(generatedQuestions);
+      setIsSaved(true);
+    }
   };
 
   return (
@@ -211,6 +239,14 @@ export default function HEMISTextGenerator() {
                 >
                   <RotateCcw className="w-4 h-4" />
                   Yangi yaratish
+                </button>
+                <button 
+                   onClick={handleSave}
+                   disabled={globalLoading || isSaved}
+                   className={`flex-1 py-5 rounded-3xl font-black uppercase tracking-widest text-xs transition-all flex items-center justify-center gap-2 shadow-xl ${isSaved ? 'bg-emerald-600 text-white' : 'bg-white border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50'}`}
+                >
+                  {globalLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : isSaved ? <CheckCircle2 className="w-5 h-5" /> : <Save className="w-5 h-5" />}
+                  {isSaved ? 'Saqlandi' : 'Saqlash (Packs)'}
                 </button>
                 <button 
                   onClick={handleCopy}

@@ -38,6 +38,7 @@ import { dataService } from '../../services/dataService';
 import AIGenerator from './AIGenerator';
 import ManualHemISEditorPage from './ManualHemISEditor/ManualHemISEditorPage';
 import HEMISTextGenerator from './HEMISTextGenerator';
+import PackSelectionModal from '../modals/PackSelectionModal';
 
 interface ExamDashboardProps {
   user: User | null;
@@ -106,6 +107,8 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
 
   // New Pack Modal
   const [showNewPackModal, setShowNewPackModal] = useState(false);
+  const [showPackSelectionModal, setShowPackSelectionModal] = useState(false);
+  const [pendingQuestions, setPendingQuestions] = useState<ExamQuestion[]>([]);
   const [newPackName, setNewPackName] = useState('');
   const [newPackColor, setNewPackColor] = useState('emerald');
 
@@ -197,8 +200,7 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
   };
 
   const handleSaveImport = async () => {
-    if (!selectedPackId || !parseResult) return;
-    setIsSaving(true);
+    if (!parseResult) return;
     
     const questionsToSave: ExamQuestion[] = parseResult.questions
       .filter((_: any, idx: number) => selectedIndexes.has(idx))
@@ -219,47 +221,82 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
         origin: q.origin || 'hemis-import'
       }));
 
+    if (questionsToSave.length === 0) return;
+
+    if (!selectedPackId) {
+      setPendingQuestions(questionsToSave);
+      setShowPackSelectionModal(true);
+      // We don't clear rawText/parseResult here yet because we might cancel
+      return;
+    }
+    
+    await performSave(selectedPackId, questionsToSave);
+    setRawText('');
+    setParseResult(null);
+  };
+
+  const handleSaveAIGenerated = async (questionsToSave: ExamQuestion[]) => {
+    if (!selectedPackId) {
+      setPendingQuestions(questionsToSave);
+      setShowPackSelectionModal(true);
+      return;
+    }
+    await performSave(selectedPackId, questionsToSave);
+  };
+
+  const performSave = async (packId: string, questionsToSave: ExamQuestion[], providedName?: string) => {
+    setIsSaving(true);
     try {
-      // Small progress simulation
-      for(let i=0; i<=100; i+=20) {
-        setSaveProgress(i);
-        await new Promise(r => setTimeout(r, 100));
-      }
-      await dataService.addQuestionsToPack(selectedPackId, questionsToSave);
-      setToast({ message: `${questionsToSave.length} ta savol saqlandi!`, type: 'success' });
+      await dataService.addQuestionsToPack(packId, questionsToSave);
+      const packName = providedName || packs.find(p => p.id === packId)?.name || 'To\'plam';
+      setToast({ message: `${questionsToSave.length} ta savol ${packName} ga saqlandi!`, type: 'success' });
       setTimeout(() => setToast(null), 3000);
+      
+      // Refresh packs to show new question counts
+      await fetchPacks();
+      
+      // If we saved to the currently active pack, refresh stats
+      if (packId === selectedPackId) {
+        await fetchQuestions();
+      }
+      
+      if (onRefreshPacks) onRefreshPacks();
+      setActiveTab('questions');
+      setSelectedPackId(packId);
       setRawText('');
       setParseResult(null);
-      setActiveTab('questions');
-      await fetchPacks(); // refresh counts
-      await fetchQuestions(); // load the new questions
-      if (onRefreshPacks) onRefreshPacks();
     } catch (err: any) {
       console.error(err);
       setToast({ message: `Saqlashda xatolik: ${err.message}`, type: 'error' });
       setTimeout(() => setToast(null), 3000);
     } finally {
       setIsSaving(false);
-      setSaveProgress(0);
+      setShowPackSelectionModal(false);
+      setPendingQuestions([]);
     }
   };
 
-  const handleSaveAIGenerated = async (questionsToSave: ExamQuestion[]) => {
-    if (!selectedPackId) return;
+  const handleCreateAndSave = async (name: string, autoDeleteDays: number | null) => {
     setIsSaving(true);
     try {
-      await dataService.addQuestionsToPack(selectedPackId, questionsToSave);
-      setToast({ message: `${questionsToSave.length} ta savol saqlandi!`, type: 'success' });
+      const newId = Math.random().toString(36).substring(2, 11);
+      const newPack: QuizPack = {
+        id: newId,
+        name,
+        color: COLORS[Math.floor(Math.random() * COLORS.length)],
+        questionCount: 0,
+        setSize: 20,
+        createdAt: Date.now(),
+        lastStudied: Date.now(),
+        deleteAt: autoDeleteDays ? Date.now() + (autoDeleteDays * 24 * 60 * 60 * 1000) : null
+      } as QuizPack;
+      
+      await dataService.savePack(newPack);
+      await performSave(newId, pendingQuestions, name);
+    } catch (e: any) {
+      console.error(e);
+      setToast({ message: "Yangi pack yaratishda xatolik", type: 'error' });
       setTimeout(() => setToast(null), 3000);
-      setActiveTab('questions');
-      await fetchPacks();
-      await fetchQuestions();
-      if (onRefreshPacks) onRefreshPacks();
-    } catch (err: any) {
-      console.error(err);
-      setToast({ message: `Saqlashda xatolik: ${err.message}`, type: 'error' });
-      setTimeout(() => setToast(null), 3000);
-    } finally {
       setIsSaving(false);
     }
   };
@@ -841,7 +878,7 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
         ) : activeTab === 'ai' ? (
           <AIGenerator onSave={handleSaveAIGenerated} isLoading={isSaving} />
         ) : activeTab === 'hemis-matn' ? (
-          <HEMISTextGenerator />
+          <HEMISTextGenerator onSave={handleSaveAIGenerated} isLoading={isSaving} />
         ) : activeTab === 'manual' ? (
           <ManualHemISEditorPage 
             packId={selectedPackId} 
@@ -1104,6 +1141,18 @@ Xiva
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showPackSelectionModal && (
+          <PackSelectionModal 
+            packs={packs}
+            onSelect={(id) => performSave(id, pendingQuestions)}
+            onCreateAndSelect={handleCreateAndSave}
+            onClose={() => setShowPackSelectionModal(false)}
+            isSaving={isSaving}
+          />
         )}
       </AnimatePresence>
     </div>

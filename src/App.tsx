@@ -89,7 +89,9 @@ function AppContent() {
     try {
       const packs = await dataService.getPacks();
       setPacks(packs);
-      if (currentEntry.view === 'landing' || (currentEntry.view === 'packs' && packs.length > 0)) {
+      // Only reset/redirect if we're on landing and there are packs, or if it's explicitly needed
+      // Avoid resetting if we're already deeper in the app or already on packs view
+      if (currentEntry.view === 'landing' && packs.length > 0) {
          reset('packs');
       }
       setSyncStatus(user ? 'synced' : 'offline');
@@ -99,7 +101,7 @@ function AppContent() {
     } finally {
       setIsDataLoading(false);
     }
-  }, [user]);
+  }, [user, currentEntry.view]);
 
   const handleSelectPack = useCallback(async (pack: QuizPack) => {
     setActivePack(pack);

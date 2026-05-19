@@ -81,8 +81,16 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const pop = useCallback(async () => {
-    if (state.stack.length <= 1) return;
-    if (!(await checkGuards())) return;
+    console.log("Navigation pop called. Current stack length:", state.stack.length);
+    if (state.stack.length <= 1) {
+      console.warn("Stack length <= 1, cannot pop.");
+      return;
+    }
+    if (!(await checkGuards())) {
+      console.warn("Pop blocked by guards.");
+      return;
+    }
+    console.log("Popping stack entry...");
     dispatch({ type: 'POP' });
     window.history.back();
   }, [state.stack.length]);
