@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Trophy, ArrowLeft, BookOpen, LayoutGrid, ChevronRight, Loader2, AlertTriangle, Clock, Target, RotateCcw, Brain, CheckCircle, RefreshCcw, XCircle } from 'lucide-react';
-import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { dataService } from '../../services/dataService';
-import { ExamHistory, ExamQuestion, QuizPack } from '../../types';
+import { ExamHistory, ExamQuestion, QuizPack, AppView } from '../../types';
+import { useNavigation } from '../../context/NavigationContext';
 
-export default function ExamResults() {
-  const navigate = useNavigate();
-  const { historyId } = useParams();
-  const location = useLocation();
-  const [history, setHistory] = useState<ExamHistory | null>(location.state || null);
-  const [isLoading, setIsLoading] = useState(!location.state);
+export interface ExamResultsProps {
+  params: any;
+  onBack: () => void;
+}
+
+export default function ExamResults({ params, onBack }: ExamResultsProps) {
+  const { push, pop, reset } = useNavigation();
+  const historyId = params?.id;
+  const [history, setHistory] = useState<ExamHistory | null>(params as ExamHistory || null);
+  const [isLoading, setIsLoading] = useState(!params || !params.score);
   const [isCreatingWeak, setIsCreatingWeak] = useState(false);
   const [showToast, setShowToast] = useState<string | null>(null);
   const [showConfirmUpdate, setShowConfirmUpdate] = useState(false);
@@ -92,7 +96,7 @@ export default function ExamResults() {
       
       setShowToast(`✅ ${failedQuestions.length} ta zaif savol O'rganish platformasiga qo'shildi!`);
       setTimeout(() => {
-        navigate(`/study?weak=${weakPackId}`);
+        reset('packs');
       }, 2000);
     } catch (err) {
       console.error(err);
@@ -105,16 +109,16 @@ export default function ExamResults() {
 
   const handleRetry = () => {
     if (!history || !history.config) return;
-    const params = new URLSearchParams({
+    const config = {
       packId: history.packId,
       type: history.examType,
-      count: history.config.questionCount.toString(),
-      time: history.config.timeLimit.toString(),
-      oson: history.config.difficulties.oson.toString(),
-      orta: history.config.difficulties.orta.toString(),
-      qiyin: history.config.difficulties.qiyin.toString()
-    });
-    navigate(`/exam/start?${params.toString()}`);
+      count: history.config.questionCount,
+      time: history.config.timeLimit,
+      oson: history.config.difficulties.oson,
+      orta: history.config.difficulties.orta,
+      qiyin: history.config.difficulties.qiyin
+    };
+    push('exam-run', config);
   };
 
   if (isLoading) {
@@ -131,7 +135,7 @@ export default function ExamResults() {
         <AlertTriangle className="w-16 h-16 text-rose-500 mb-6" />
         <h1 className="text-2xl font-black text-gray-900 mb-2 italic">Xatolik yuz berdi</h1>
         <p className="text-gray-500 mb-8">Natijalarni yuklab bo'lmadi.</p>
-        <button onClick={() => navigate('/exam')} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-emerald-100">Dashbordga qaytish</button>
+        <button onClick={() => pop()} className="px-8 py-4 bg-emerald-600 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-lg shadow-emerald-100">Dashbordga qaytish</button>
       </div>
     );
   }
@@ -233,7 +237,7 @@ export default function ExamResults() {
                        </p>
                        {percentage < 70 && (
                          <button 
-                           onClick={() => navigate(`/study/${history.packId}?topic=${encodeURIComponent(topic)}`)}
+                           onClick={() => push('selection', { packId: history.packId, topic: topic })}
                            className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1 hover:underline"
                          >
                            Mavzuni o'rganish
@@ -278,7 +282,7 @@ export default function ExamResults() {
            </button>
 
            <button 
-             onClick={() => navigate('/exam')}
+             onClick={() => pop()}
              className="w-full py-5 bg-gray-900 text-white rounded-[2rem] font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 shadow-2xl shadow-gray-300 hover:scale-[1.02] active:scale-95 transition-all"
            >
              <LayoutGrid className="w-4 h-4" />
@@ -287,14 +291,14 @@ export default function ExamResults() {
            
            <div className="grid grid-cols-2 gap-4">
              <button 
-               onClick={() => navigate('/')}
+               onClick={() => reset('landing')}
                className="py-4 bg-white border border-gray-200 text-gray-400 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors"
              >
                <ArrowLeft className="w-4 h-4" />
                Asosiy menyu
              </button>
              <button 
-               onClick={() => navigate(`/study/${history.packId}`)}
+               onClick={() => push('selection', { packId: history.packId })}
                className="py-4 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-2xl font-black uppercase tracking-widest text-[10px] flex items-center justify-center gap-2 hover:bg-emerald-100 transition-colors"
              >
                <BookOpen className="w-4 h-4" />

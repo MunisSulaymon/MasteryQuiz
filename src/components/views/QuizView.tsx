@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useBeforeLeave } from '../../hooks/useBeforeLeave';
 import { 
   ArrowLeft, 
   ClipboardList, 
@@ -38,6 +39,11 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
 
   const masteredCount = useMemo(() => questions.filter(q => q.box === 3).length, [questions]);
   const total = questions.length;
+
+  useBeforeLeave('quiz-view', useCallback(async () => {
+    if (masteredCount === total || isCelebration) return true;
+    return window.confirm("O'rganish progressi saqlanadi. To'xtatmoqchimisiz?");
+  }, [masteredCount, total, isCelebration]));
 
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);

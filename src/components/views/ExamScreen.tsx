@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useBeforeLeave } from '../../hooks/useBeforeLeave';
 import { 
   ArrowLeft, 
   Flag, 
@@ -13,7 +14,6 @@ import {
   XCircle,
   HelpCircle
 } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { ExamQuestion, ExamSession, ExamHistory } from '../../types';
 import { dataService } from '../../services/dataService';
@@ -21,11 +21,11 @@ import { prepareExamQuestions } from '../../utils/examUtils';
 
 interface ExamScreenProps {
   user: User | null;
+  params: any;
+  onResults: (id: string, data: any) => void;
 }
 
-export default function ExamScreen({ user }: ExamScreenProps) {
-  const navigate = useNavigate();
-  const location = useLocation();
+export default function ExamScreen({ user, params, onResults }: ExamScreenProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [session, setSession] = useState<ExamSession | null>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -36,20 +36,23 @@ export default function ExamScreen({ user }: ExamScreenProps) {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number>(Date.now());
 
+  useBeforeLeave('exam-screen', useCallback(async () => {
+    if (isSubmitting) return true;
+    return window.confirm("Imtihonni tark etmoqchimisiz? Barcha javoblaringiz yo'qoladi.");
+  }, [isSubmitting]));
+
   useEffect(() => {
-    const searchParams = new URLSearchParams(location.search);
-    const packId = searchParams.get('packId');
-    const count = Number(searchParams.get('count') || 30);
-    const time = Number(searchParams.get('time') || 60) * 60; // to seconds
-    const type = searchParams.get('type') as any || 'yakuniy';
+    const packId = params.packId;
+    const count = Number(params.count || 30);
+    const time = Number(params.time || 60) * 60; // to seconds
+    const type = params.type || 'yakuniy';
     const dist = {
-      oson: Number(searchParams.get('oson') || 15),
-      orta: Number(searchParams.get('orta') || 55),
-      qiyin: Number(searchParams.get('qiyin') || 30)
+      oson: Number(params.oson || 15),
+      orta: Number(params.orta || 55),
+      qiyin: Number(params.qiyin || 30)
     };
 
     if (!packId) {
-      navigate('/exam');
       return;
     }
 
@@ -92,7 +95,7 @@ export default function ExamScreen({ user }: ExamScreenProps) {
 
     } catch (err) {
       console.error(err);
-      navigate('/exam');
+      onResults('cancel', null);
     }
   };
 
@@ -182,17 +185,7 @@ export default function ExamScreen({ user }: ExamScreenProps) {
 
     try {
       await dataService.saveExamResult(historyRecord);
-      navigate(`/exam/results/${historyRecord.id}`, { 
-        replace: true, 
-        state: { 
-          ...historyRecord,
-          correctCount, 
-          total: session.questions.length, 
-          timeUsed, 
-          timeTotal: session.totalTime, 
-          topicBreakdown 
-        } 
-      });
+      onResults(historyRecord.id, historyRecord);
     } catch (err) {
       console.error(err);
       setIsSubmitting(false);
@@ -225,7 +218,7 @@ export default function ExamScreen({ user }: ExamScreenProps) {
         <button 
           onClick={() => {
             if (window.confirm("Imtihonni tark etmoqchimisiz? Barcha javoblaringiz yo'qoladi.")) {
-              navigate('/exam');
+              onResults('cancel', null); // This should actually be pop()
             }
           }}
           className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-gray-400 hover:text-rose-600 transition-colors"

@@ -10,21 +10,23 @@ interface State {
   error?: Error;
 }
 
-class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false
-  };
+export default class ErrorBoundary extends Component<Props, State> {
+  constructor(props: Props) {
+    super(props);
+    (this as any).state = { hasError: false };
+  }
 
-  public static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): State {
     return { hasError: true, error };
   }
 
-  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('Uncaught error:', error, errorInfo);
   }
 
-  public render() {
-    if (this.state.hasError) {
+  render() {
+    const { hasError, error } = (this as any).state;
+    if (hasError) {
       return (
         <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center p-6">
           <div className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl border border-rose-100 text-center">
@@ -37,7 +39,7 @@ class ErrorBoundary extends Component<Props, State> {
             </p>
             <div className="bg-gray-50 rounded-2xl p-4 mb-8 text-left">
               <p className="text-[10px] font-black uppercase text-gray-400 mb-1">Xatolik tafsiloti:</p>
-              <p className="text-[11px] font-mono text-rose-600 break-all">{this.state.error?.message}</p>
+              <p className="text-[11px] font-mono text-rose-600 break-all">{error?.message}</p>
             </div>
             <button
               onClick={() => window.location.reload()}
@@ -51,8 +53,6 @@ class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    return this.props.children;
+    return (this as any).props.children;
   }
 }
-
-export default ErrorBoundary;

@@ -30,9 +30,9 @@ import {
   Edit2,
   Check
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { QuizPack, ExamQuestion, ExamHistory } from '../../types';
+import { useNavigation } from '../../context/NavigationContext';
 import { parseHemisFormat, HemisParsedQuestion } from '../../utils/hemisParser';
 import { dataService } from '../../services/dataService';
 import AIGenerator from './AIGenerator';
@@ -40,10 +40,12 @@ import AIGenerator from './AIGenerator';
 interface ExamDashboardProps {
   user: User | null;
   onLogin: () => void;
+  onStart: (packId: string, config: any) => void;
+  onRefreshPacks?: () => void;
 }
 
-export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
-  const navigate = useNavigate();
+export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }: ExamDashboardProps) {
+  const { push, pop } = useNavigation();
   const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam' | 'history' | 'ai'>('questions');
   const [packs, setPacks] = useState<QuizPack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string>('');
@@ -78,16 +80,16 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
   }, [examType]);
 
   const handleStartExam = () => {
-    const params = new URLSearchParams({
+    const params = {
       packId: selectedPackId,
       type: examType,
-      count: questionCount.toString(),
-      time: timeLimit.toString(),
-      oson: difficulties.oson.toString(),
-      orta: difficulties.orta.toString(),
-      qiyin: difficulties.qiyin.toString()
-    });
-    navigate(`/exam/start?${params.toString()}`);
+      count: questionCount,
+      time: timeLimit,
+      oson: difficulties.oson,
+      orta: difficulties.orta,
+      qiyin: difficulties.qiyin
+    };
+    onStart(selectedPackId, params);
   };
 
   // Import states
@@ -187,6 +189,7 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
     await dataService.savePack(newPack);
     await fetchPacks();
     setSelectedPackId(newId);
+    if (onRefreshPacks) onRefreshPacks();
     setShowNewPackModal(false);
     setNewPackName('');
   };
@@ -226,6 +229,8 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
       setParseResult(null);
       setActiveTab('questions');
       await fetchPacks(); // refresh counts
+      await fetchQuestions(); // load the new questions
+      if (onRefreshPacks) onRefreshPacks();
     } catch (err: any) {
       console.error(err);
       setToast({ message: `Saqlashda xatolik: ${err.message}`, type: 'error' });
@@ -245,6 +250,8 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
       setTimeout(() => setToast(null), 3000);
       setActiveTab('questions');
       await fetchPacks();
+      await fetchQuestions();
+      if (onRefreshPacks) onRefreshPacks();
     } catch (err: any) {
       console.error(err);
       setToast({ message: `Saqlashda xatolik: ${err.message}`, type: 'error' });
@@ -311,7 +318,7 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => navigate('/')}
+              onClick={() => pop()}
               className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:text-emerald-600 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
@@ -662,16 +669,16 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
                                alert("Ushbu imtihon uchun konfiguratsiya topilmadi.");
                                return;
                              }
-                             const params = new URLSearchParams({
+                             const config = {
                                packId: h.packId,
                                type: h.examType,
-                               count: h.config.questionCount.toString(),
-                               time: h.config.timeLimit.toString(),
-                               oson: h.config.difficulties.oson.toString(),
-                               orta: h.config.difficulties.orta.toString(),
-                               qiyin: h.config.difficulties.qiyin.toString()
-                             });
-                             navigate(`/exam/start?${params.toString()}`);
+                               count: h.config.questionCount,
+                               time: h.config.timeLimit,
+                               oson: h.config.difficulties.oson,
+                               orta: h.config.difficulties.orta,
+                               qiyin: h.config.difficulties.qiyin
+                             };
+                             onStart(h.packId, config);
                           }}
                           className="w-10 h-10 bg-gray-50 text-gray-400 rounded-xl flex items-center justify-center hover:bg-emerald-50 hover:text-emerald-600 transition-all group"
                           title="Qayta urinish"
@@ -679,7 +686,7 @@ export default function ExamDashboard({ user, onLogin }: ExamDashboardProps) {
                           <RotateCcw className="w-4 h-4 group-hover:rotate-180 transition-transform" />
                         </button>
                         <button 
-                          onClick={() => navigate(`/exam/results/${h.id}`, { state: h })}
+                          onClick={() => push('exam-results', h)}
                           className="px-6 py-3 bg-gray-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-gray-800 transition-colors flex items-center gap-2"
                         >
                           Batafsil

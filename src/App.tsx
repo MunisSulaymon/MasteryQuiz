@@ -32,10 +32,17 @@ import ConfirmModal from './components/modals/ConfirmModal';
 import MigrationModal from './components/modals/MigrationModal';
 import { localStore } from './utils/localStore';
 
+import { NavigationProvider, useNavigation } from './context/NavigationContext';
+import ErrorBoundary from './components/ErrorBoundary';
+import { BackButton } from './components/navigation/BackButton';
+import { Breadcrumb } from './components/navigation/Breadcrumb';
+
 function AppContent() {
+  const { state: navState, push, pop, replace, reset } = useNavigation();
+  const currentEntry = navState.stack[navState.stack.length - 1];
+  
   const navigate = useNavigate();
   const location = useLocation();
-  const [view, setView] = useState<AppView>('landing');
   const [packs, setPacks] = useState<QuizPack[]>([]);
   const [activePack, setActivePack] = useState<QuizPack | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('synced');
@@ -82,8 +89,8 @@ function AppContent() {
     try {
       const packs = await dataService.getPacks();
       setPacks(packs);
-      if (view === 'landing' || (view === 'packs' && packs.length > 0)) {
-         setView('packs');
+      if (currentEntry.view === 'landing' || (currentEntry.view === 'packs' && packs.length > 0)) {
+         reset('packs');
       }
       setSyncStatus(user ? 'synced' : 'offline');
     } catch (err) {
@@ -143,9 +150,9 @@ function AppContent() {
 
       setSyncStatus(user ? 'synced' : 'offline');
       if (questionsWithState.length > 0) {
-        setView('selection');
+        push('selection');
       } else {
-        setView('landing');
+        push('landing');
       }
     } catch (err) {
       console.error("Load pack data error:", err);
@@ -201,7 +208,7 @@ function AppContent() {
       setPacks(prev => prev.filter(p => p.id !== packToDelete.id));
       if (activePack?.id === packToDelete.id) {
          setActivePack(null);
-         setView('packs');
+         reset('packs');
       }
       setSyncStatus(user ? 'synced' : 'offline');
     } catch (err: any) {
@@ -339,8 +346,8 @@ function AppContent() {
     setSession(null);
     setPacks([]);
     setActivePack(null);
-    setView('landing');
-  }, []);
+    reset('landing');
+  }, [reset]);
 
   const handleParse = useCallback(async () => {
     if (!inputText.trim() || !activePack) return;
@@ -374,7 +381,7 @@ function AppContent() {
       const updatedPack = { ...activePack, inputText, setSize, questionCount: questions.length, lastStudied: Date.now() };
       await dataService.savePack(updatedPack);
       
-      setView('selection');
+      push('selection');
     } catch (err) {
       console.error("Parse error:", err);
       setParseError("An unexpected error occurred while parsing.");
@@ -393,7 +400,7 @@ function AppContent() {
       rounds: 1,
       mode
     });
-    setView('quiz');
+    push('quiz');
   }, []);
 
   const resetSetAndStart = useCallback((set: QuizSet) => {
@@ -412,7 +419,7 @@ function AppContent() {
       rounds: 1,
       mode: 'leitner'
     });
-    setView('drill');
+    push('drill');
   }, [activeSet?.id]);
 
   const handleUpdateQuestion = useCallback((q: Question) => {
@@ -420,14 +427,14 @@ function AppContent() {
   }, []);
 
   const handleComplete = useCallback((finalSession: QuizSession) => {
-    if (view === 'quiz') {
+    if (currentEntry.view === 'quiz') {
       setSession(finalSession);
-      setView('summary');
+      push('summary');
     } else {
-      setView('victory');
+      push('victory');
       handleSaveProgress(finalSession.questions);
     }
-  }, [view, handleSaveProgress]);
+  }, [currentEntry.view, push, handleSaveProgress]);
 
   const handleRefresh = useCallback(async () => {
     setIsDataLoading(true);
@@ -591,7 +598,16 @@ function AppContent() {
       <WelcomeSyncBanner />
       <SyncIndicator />
       
-      {/* Toast Notifications */}
+      {/* Shell / Navigation Bar */}
+      <div className="fixed top-0 left-0 right-0 z-[55] bg-white/60 backdrop-blur-xl border-b border-gray-100 px-4 py-3">
+        <div className="max-w-7xl mx-auto flex items-center gap-4">
+          <BackButton />
+          <Breadcrumb />
+        </div>
+      </div>
+      
+      <div className="pt-16">
+        {/* Toast Notifications */}
       <AnimatePresence>
         {showSyncSuccess && (
           <motion.div 
@@ -634,134 +650,135 @@ function AppContent() {
         )}
       </AnimatePresence>
 
-      <Suspense fallback={
-        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 gap-4">
-          <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
-          <p className="text-gray-500 font-bold animate-pulse">Loading Platform...</p>
-        </div>
-      }>
-        <Routes location={location}>
-          <Route path="/" element={
-            <PortalPage 
-              user={user} 
-              packs={packs} 
-              onLogin={handleLogin} 
-              onLogout={handleLogout} 
-              isAuthLoading={isAuthLoading}
-            />
-          } />
-          
-          <Route path="/exam" element={<ExamDashboard user={user} onLogin={handleLogin} />} />
-          <Route path="/exam/start" element={<ExamScreen user={user} />} />
-          <Route path="/exam/results/:historyId" element={<ExamResults />} />
-          
-          <Route path="/study" element={
+        <Suspense fallback={
+          <div className="flex-1 flex flex-col items-center justify-center bg-slate-50 gap-4">
+            <Loader2 className="w-12 h-12 text-indigo-600 animate-spin" />
+            <p className="text-gray-500 font-bold animate-pulse">Loading Platform...</p>
+          </div>
+        }>
+          <div className="flex-1 flex flex-col">
             <AnimatePresence mode="wait">
-              {view === 'landing' && (
-                  <motion.div key="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <LandingView 
-                      inputText={inputText} 
-                      setInputText={setInputText} 
-                      onParse={handleParse}
-                      user={user}
-                      onLogin={handleLogin}
-                      onLogout={handleLogout}
-                      isDataLoading={isDataLoading}
-                      sets={sets}
-                      isParsing={isParsing}
-                      parseProgress={parseProgress}
-                      parseError={parseError}
-                      authError={authError}
-                      onClearAuthError={() => setAuthError(null)}
-                      onBack={() => setView('packs')}
-                    />
-                  </motion.div>
-                )}
-                {view === 'packs' && (
-                  <motion.div key="packs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <PacksView 
-                      packs={packs}
-                      onSelect={handleSelectPack}
-                      onCreate={() => setShowPackModal(true)}
-                      onEdit={(p) => { setEditingPack(p); setShowPackModal(true); }}
-                      onDelete={(p) => setDeletingPack(p)}
-                      onLogout={handleLogout}
-                      user={user}
-                      onExtend={handleExtendPack}
-                    />
-                  </motion.div>
-                )}
-                {view === 'selection' && (
-                  <motion.div key="selection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <SelectionView 
-                      sets={sets} 
-                      onSelect={(s) => startSet(s, 'leitner')}
-                      onQuickTest={(s) => startSet(s, 'quick-test')}
-                      onResetSet={resetSetAndStart}
-                      onBack={() => setView('packs')}
-                      onLogout={handleLogout}
-                      user={user}
-                      setSize={setSize}
-                      setSetSize={setSetSize}
-                      onEditPack={() => setView('landing')}
-                    />
-                  </motion.div>
-                )}
-                {(view === 'quiz' || view === 'drill') && (
-                  <motion.div key={view} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <QuizView 
-                      session={(view === 'quiz' ? session : drillSession)!} 
-                      onComplete={handleComplete}
-                      onBack={() => setView(view === 'quiz' ? 'selection' : 'summary')}
-                      onUpdateQuestion={handleUpdateQuestion}
-                      title={view === 'drill' ? "Weakness Drill" : undefined}
-                      isWeakPack={activePack?.isWeakPack}
-                    />
-                  </motion.div>
-                )}
-                {view === 'victory' && (
-                  <motion.div key="victory" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <VictoryView onHome={() => setView('selection')} />
-                  </motion.div>
-                )}
-                {view === 'summary' && session && (
-                  <motion.div key="summary" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <SummaryView 
-                      session={session} 
-                      onRetry={() => {
-                        const isMastered = activeSet!.questions.every(q => q.box === 3);
-                        if (isMastered) resetSetAndStart(activeSet!);
-                        else startSet(activeSet!, 'leitner');
-                      }}
-                      onNextSet={() => {
-                        const next = sets.find(s => s.id === session.setId + 1);
-                        if (next) startSet(next, 'leitner');
-                        else setView('selection');
-                      }}
-                      onHome={() => setView('selection')}
-                      onLogout={handleLogout}
-                      user={user}
-                      onDrill={startDrill}
-                      onSave={handleSaveProgress}
-                      previousBest={setsMastery.get(session.setId)?.bestRounds}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-          } />
-          
-          {/* Fallback */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+              {currentEntry.view === 'landing' && (
+                <motion.div key="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                  <PortalPage 
+                    user={user} 
+                    packs={packs} 
+                    onLogin={handleLogin} 
+                    onLogout={handleLogout} 
+                    isAuthLoading={isAuthLoading}
+                    onStudy={() => push('packs')}
+                    onExam={() => push('exam')}
+                  />
+                </motion.div>
+              )}
+              {currentEntry.view === 'packs' && (
+                <motion.div key="packs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                  <PacksView 
+                    packs={packs}
+                    onSelect={handleSelectPack}
+                    onCreate={() => setShowPackModal(true)}
+                    onEdit={(p) => { setEditingPack(p); setShowPackModal(true); }}
+                    onDelete={(p) => setDeletingPack(p)}
+                    onLogout={handleLogout}
+                    user={user}
+                    onExtend={handleExtendPack}
+                  />
+                </motion.div>
+              )}
+              {currentEntry.view === 'selection' && (
+                <motion.div key="selection" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                  <SelectionView 
+                    sets={sets} 
+                    onSelect={(s) => startSet(s, 'leitner')}
+                    onQuickTest={(s) => startSet(s, 'quick-test')}
+                    onResetSet={resetSetAndStart}
+                    onBack={pop}
+                    onLogout={handleLogout}
+                    user={user}
+                    setSize={setSize}
+                    setSetSize={setSetSize}
+                    onEditPack={() => push('landing')}
+                  />
+                </motion.div>
+              )}
+              {(currentEntry.view === 'quiz' || currentEntry.view === 'drill') && (
+                <motion.div key={currentEntry.view} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                  <QuizView 
+                    session={(currentEntry.view === 'quiz' ? session : drillSession)!} 
+                    onComplete={handleComplete}
+                    onBack={pop}
+                    onUpdateQuestion={handleUpdateQuestion}
+                    title={currentEntry.view === 'drill' ? "Weakness Drill" : undefined}
+                    isWeakPack={activePack?.isWeakPack}
+                  />
+                </motion.div>
+              )}
+              {currentEntry.view === 'exam' && (
+                <motion.div key="exam" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                  <ExamDashboard 
+                    user={user} 
+                    onLogin={handleLogin} 
+                    onStart={(pId, config) => {
+                      push('exam-run', { packId: pId, ...config });
+                    }} 
+                    onRefreshPacks={() => loadInitialData(true)}
+                  />
+                </motion.div>
+              )}
+              {currentEntry.view === 'exam-run' && (
+                <motion.div key="exam-run" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                  <ExamScreen user={user} params={currentEntry.params} onResults={(id, data) => id === 'cancel' ? pop() : replace('exam-results', { id, ...data })} />
+                </motion.div>
+              )}
+              {currentEntry.view === 'exam-results' && (
+                <motion.div key="exam-results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                  <ExamResults params={currentEntry.params} onBack={() => pop()} />
+                </motion.div>
+              )}
+              {currentEntry.view === 'victory' && (
+                <motion.div key="victory" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                  <VictoryView onHome={() => reset('packs')} />
+                </motion.div>
+              )}
+              {currentEntry.view === 'summary' && session && (
+                <motion.div key="summary" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex-1">
+                  <SummaryView 
+                    session={session} 
+                    onRetry={() => {
+                      const isMastered = activeSet!.questions.every(q => q.box === 3);
+                      if (isMastered) resetSetAndStart(activeSet!);
+                      else startSet(activeSet!, 'leitner');
+                    }}
+                    onNextSet={() => {
+                      const next = sets.find(s => s.id === session.setId + 1);
+                      if (next) startSet(next, 'leitner');
+                      else push('selection');
+                    }}
+                    onHome={() => reset('packs')}
+                    onLogout={handleLogout}
+                    user={user}
+                    onDrill={startDrill}
+                    onSave={handleSaveProgress}
+                    previousBest={setsMastery.get(session.setId)?.bestRounds}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        </Suspense>
+      </div>
     </div>
   );
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppContent />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <NavigationProvider>
+          <AppContent />
+        </NavigationProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

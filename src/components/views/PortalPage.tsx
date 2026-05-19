@@ -11,9 +11,11 @@ interface PortalPageProps {
   onLogin: () => void;
   onLogout: () => void;
   isAuthLoading: boolean;
+  onStudy: () => void;
+  onExam: () => void;
 }
 
-export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoading }: PortalPageProps) {
+export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoading, onStudy, onExam }: PortalPageProps) {
   const navigate = useNavigate();
   const [showTooltip, setShowTooltip] = React.useState(false);
   const [dismissedTooltip, setDismissedTooltip] = React.useState(() => {
@@ -124,7 +126,7 @@ export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoadi
           whileHover={{ y: -4 }}
           whileTap={{ scale: 0.98 }}
           className="bg-blue-50 border-2 border-blue-200 rounded-[2.5rem] p-8 flex flex-col gap-6 cursor-pointer relative overflow-hidden"
-          onClick={() => navigate('/study')}
+          onClick={onStudy}
         >
           <div className="absolute top-0 right-0 p-6 opacity-10">
             <BookOpen className="w-24 h-24 text-blue-600" />
@@ -154,7 +156,7 @@ export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoadi
           </div>
 
           <div className="flex flex-col gap-3">
-             <button className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-blue-200 active:scale-95">
+             <button className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-blue-200 active:scale-95 text-center">
                 Platformaga o'tish
              </button>
              {totalPacks > 0 && (
@@ -171,7 +173,7 @@ export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoadi
           whileHover={{ y: -4 }}
           whileTap={{ scale: 0.98 }}
           className="bg-emerald-50 border-2 border-emerald-200 rounded-[2.5rem] p-8 flex flex-col gap-6 cursor-pointer relative overflow-hidden"
-          onClick={() => navigate('/exam')}
+          onClick={onExam}
         >
           <div className="absolute top-0 right-0 p-6 opacity-10">
             <ClipboardCheck className="w-24 h-24 text-emerald-600" />
@@ -197,7 +199,7 @@ export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoadi
             </div>
           </div>
 
-          <button className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-emerald-200 active:scale-95">
+          <button className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-emerald-200 active:scale-95 text-center">
             Platformaga o'tish
           </button>
         </motion.div>
