@@ -13,3 +13,11 @@ body {
 .bg-radial-gradient {
   background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
 }
+
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

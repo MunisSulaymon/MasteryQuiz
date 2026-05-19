@@ -37,6 +37,7 @@ import { parseHemisText } from '../../utils/hemisParser';
 import { dataService } from '../../services/dataService';
 import AIGenerator from './AIGenerator';
 import ManualHemISEditorPage from './ManualHemISEditor/ManualHemISEditorPage';
+import HEMISTextGenerator from './HEMISTextGenerator';
 
 interface ExamDashboardProps {
   user: User | null;
@@ -47,7 +48,7 @@ interface ExamDashboardProps {
 
 export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }: ExamDashboardProps) {
   const { push, pop } = useNavigation();
-  const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam' | 'history' | 'ai' | 'manual'>('questions');
+  const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam' | 'history' | 'ai' | 'manual' | 'hemis-matn'>('questions');
   const [packs, setPacks] = useState<QuizPack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string>('');
   const [questions, setQuestions] = useState<ExamQuestion[]>([]);
@@ -394,7 +395,7 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
 
       {/* Tabs */}
       <div className="max-w-4xl mx-auto px-6 mt-6">
-        <div className="flex bg-white/50 backdrop-blur p-1 rounded-2xl border border-gray-200">
+        <div className="flex overflow-x-auto no-scrollbar bg-white/50 backdrop-blur p-1 rounded-2xl border border-gray-200">
           <button 
             onClick={() => setActiveTab('questions')}
             className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'questions' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
@@ -424,6 +425,12 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
             className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'ai' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             AI Gen
+          </button>
+          <button 
+            onClick={() => setActiveTab('hemis-matn')}
+            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'hemis-matn' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+          >
+            HEMIS Matn
           </button>
           <button 
             onClick={() => setActiveTab('manual')}
@@ -833,6 +840,8 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
           </div>
         ) : activeTab === 'ai' ? (
           <AIGenerator onSave={handleSaveAIGenerated} isLoading={isSaving} />
+        ) : activeTab === 'hemis-matn' ? (
+          <HEMISTextGenerator />
         ) : activeTab === 'manual' ? (
           <ManualHemISEditorPage 
             packId={selectedPackId} 
