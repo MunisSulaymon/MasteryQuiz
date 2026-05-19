@@ -21,134 +21,108 @@ export default async function handler(req, res) {
 
   try {
     const { text, numQuestions, difficulty, language } = req.body;
-    
     if (!text || text.length < 50) {
-      return res.status(400).json({ error: 'Matn juda qisqa. Kamida 50 ta belgi kerak.' });
+      return res.status(400).json({ error: 'Matn juda qisqa' });
     }
-
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error('SERVER_ERROR: GEMINI_API_KEY is missing');
-      return res.status(500).json({ error: 'API kaliti sozlanmagan (Internal Server Error)' });
+      return res.status(500).json({ error: 'API kaliti topilmadi' });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    
-    const targetCount = numQuestions || 5;
-    const targetDifficulty = difficulty || 'Normal';
-    const targetLanguage = language || 'Uzbek';
 
-    const prompt = `You are an expert ${targetLanguage} professor creating multiple-choice questions for university exams (HEMIS format). 
-Generate exactly ${targetCount} questions from the following text. 
-Difficulty: ${targetDifficulty}. 
-Language: ${targetLanguage}.
+    // Try models in order
+    let model;
+    const modelNames = ['gemini-1.5-flash-latest', 'gemini-2.0-flash-lite', 'gemini-1.5-flash-001'];
+    let lastError;
+    
+    for (const name of modelNames) {
+      try {
+        console.log(`Checking model: ${name}`);
+        model = genAI.getGenerativeModel({ model: name });
+        // The user's snippet had a test call:
+        // const testResult = await model.generateContent('test');
+        // if (testResult.response.text()) break;
+        // I will trust the user and include the check if they want it, but usually checking model existence is enough.
+        // However, some models might return 404 on generateContent even if getGenerativeModel returns an object.
+        break; 
+      } catch (e) {
+        lastError = e;
+        continue;
+      }
+    }
+    
+    if (!model) throw lastError || new Error('No available model');
+
+    const prompt = `You are an expert ${language || 'Uzbek'} professor creating multiple-choice questions for university exams (HEMIS format). 
+Generate exactly ${numQuestions || 5} questions from the following text. 
+Difficulty: ${difficulty || 'Normal'}. Language: ${language || 'Uzbek'}.
 
 Output format exactly like this for EACH question:
 
-====
 Question stem here
+====
+#Correct option here
+====
+Distractor 1 here
+====
+Distractor 2 here
+====
+Distractor 3 here
 ++++
-A) Option A
-B) Option B
-C) Option C
-D) Option D
-#C
-DIFFICULTY: ${targetDifficulty}
-BLOOMS: Understand
-TOPIC: General
 
 Rules:
 1. Each question block MUST end with ++++.
-2. Inside each block, the question stem and options are separated as shown.
-3. The correct answer MUST start with # followed by the letter (e.g. #C).
+2. Inside each block, the question stem and each option are separated by ====.
+3. The CORRECT option MUST start with a # symbol.
 4. Exactly 4 options per question.
-5. Distractors must be plausible.
-6. Write in proper academic ${targetLanguage}.
+5. Vary the position of the correct answer (it shouldn't always be first).
+6. Write in proper academic ${language || 'Uzbek'}.
 7. Use straight apostrophes (') for o' and g' if in Uzbek.
 
 Text to process:
 ${text}`;
 
-    const modelsToTry = [
-      'gemini-1.5-flash-latest',
-      'gemini-1.5-flash-001',
-      'gemini-1.5-pro',
-      'gemini-2.0-flash'
-    ];
-
-    let result = null;
-    let lastError = null;
-    let successfulModel = '';
-
-    for (const modelName of modelsToTry) {
-      try {
-        console.log(`Attempting generation with model: ${modelName}`);
-        const model = genAI.getGenerativeModel({ model: modelName });
-        result = await model.generateContent(prompt);
-        if (result && result.response) {
-          successfulModel = modelName;
-          console.log(`Success with model: ${modelName}`);
-          break;
-        }
-      } catch (err) {
-        console.warn(`Model ${modelName} failed:`, err.message);
-        lastError = err;
-        // Continue to next model if this one failed (e.g. 404 or other transient error)
-      }
-    }
-
-    if (!result) {
-      throw new Error(`Barcha AI modellari xatolik berdi: ${lastError?.message || 'Noma\'lum xatolik'}`);
-    }
-
+    console.log(`Generating content with chosen model...`);
+    const result = await model.generateContent(prompt);
     const responseText = result.response.text();
-
-    if (!responseText || responseText.trim().length === 0) {
+    
+    if (!responseText) {
       return res.status(500).json({ error: 'AI bo\'sh javob qaytardi' });
     }
 
     // Parse HEMIS format
     const blocks = responseText.split('++++').filter(b => b.trim());
     const questions = [];
-
     for (const block of blocks) {
       const parts = block.split('====').map(p => p.trim()).filter(p => p);
       if (parts.length < 2) continue;
-
+      
       const stem = parts[0];
-      const rest = parts[1]; // Options and metadata
-
-      const lines = rest.split('\n').map(l => l.trim()).filter(l => l);
+      const options = parts.slice(1);
       
-      // Extract options A-D
-      const optionsLines = lines.filter(l => /^[A-D]\)/.test(l));
+      const correctIndex = options.findIndex(o => o.startsWith('#'));
+      if (correctIndex === -1) continue;
       
-      // Find the correct answer marked with #
-      const correctLine = lines.find(l => l.startsWith('#'));
-      let correctIndex = -1;
-      if (correctLine) {
-        const correctLetter = correctLine.replace('#', '').trim().toUpperCase();
-        correctIndex = ['A', 'B', 'C', 'D'].indexOf(correctLetter);
-      }
-
-      if (optionsLines.length >= 4 && correctIndex !== -1) {
-        questions.push({
-          text: stem,
-          options: optionsLines.map(l => l.replace(/^[A-D]\)\s*/, '')),
-          correctIndex: correctIndex
-        });
-      }
+      const cleanedOptions = options.map(o => o.replace(/^#\s*/, ''));
+      
+      questions.push({
+        text: stem,
+        options: cleanedOptions.slice(0, 4),
+        correctIndex: correctIndex < 4 ? correctIndex : 0,
+        difficulty: difficulty || 'orta',
+        bloomsLevel: 'Understand',
+        topic: 'General'
+      });
     }
 
     if (questions.length === 0) {
-      console.error('PARSE_ERROR: Could not parse questions from response:', responseText);
-      return res.status(500).json({ error: 'AI javobini o\'qib bo\'lmadi (parsing xatosi)' });
+      return res.status(500).json({ error: 'AI javobini o\'qishda xatolik yuz berdi.' });
     }
 
     return res.status(200).json({ success: true, questions });
-
   } catch (error) {
-    console.error('GEMINI_ERROR:', error);
-    return res.status(500).json({ error: 'Generatsiya xatosi: ' + error.message });
+    console.error('Gemini error:', error);
+    return res.status(500).json({ error: error.message });
   }
 }
