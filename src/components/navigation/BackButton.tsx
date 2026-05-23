@@ -7,14 +7,20 @@ export const BackButton: React.FC = () => {
   const { state, pop } = useNavigation();
   const canPop = state.stack.length > 1;
 
+  console.log(`[BackButton] Rendering BackButton. canPop=${canPop}, stack=`, state.stack);
+
   if (!canPop) return null;
 
   return (
     <motion.button
+      type="button"
       initial={{ opacity: 0, x: -10 }}
       animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -10 }}
-      onClick={() => pop()}
+      onClick={() => {
+        console.log("[BackButton] onClick handler fired");
+        pop();
+      }}
       className="p-3 bg-white/80 backdrop-blur-md rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all flex items-center gap-2 group"
       aria-label="Ortga"
     >

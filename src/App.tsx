@@ -41,6 +41,7 @@ function AppContent() {
   const { state: navState, push, pop, replace, reset } = useNavigation();
   const currentEntry = navState.stack[navState.stack.length - 1];
   
+  const hasAutoRedirected = useRef(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [packs, setPacks] = useState<QuizPack[]>([]);
@@ -91,9 +92,10 @@ function AppContent() {
       setPacks(packs);
       
       // If we are at the very beginning (stack depth 1) and on landing,
-      // and we have packs, we probably want to show packs view.
-      if (navState.stack.length === 1 && currentEntry.view === 'landing' && packs.length > 0) {
+      // and we have packs, we probably want to show packs view on initial start.
+      if (!hasAutoRedirected.current && navState.stack.length === 1 && currentEntry.view === 'landing' && packs.length > 0) {
          console.log("[APP] Initial load: auto-pushing to packs view");
+         hasAutoRedirected.current = true;
          push('packs');
       }
       setSyncStatus(user ? 'synced' : 'offline');
@@ -486,7 +488,7 @@ function AppContent() {
     return (
       <motion.div 
         initial={{ y: -100 }} animate={{ y: 0 }}
-        className="fixed top-0 left-0 right-0 z-[60] bg-emerald-600 text-white p-3 flex items-center justify-between shadow-lg"
+        className="relative z-[60] bg-emerald-600 text-white p-3 flex items-center justify-between shadow-lg w-full"
       >
         <div className="flex items-center gap-3 ml-4">
           <Cloud className="w-5 h-5 text-emerald-200" />
@@ -603,14 +605,16 @@ function AppContent() {
       <SyncIndicator />
       
       {/* Shell / Navigation Bar */}
-      <div className="fixed top-0 left-0 right-0 z-[55] bg-white/60 backdrop-blur-xl border-b border-gray-100 px-4 py-3">
-        <div className="max-w-7xl mx-auto flex items-center gap-4">
-          <BackButton />
-          <Breadcrumb />
+      {navState.stack.length > 1 && (
+        <div className="sticky top-0 w-full z-[55] bg-white/60 backdrop-blur-xl border-b border-gray-100 px-4 py-3 hidden md:block">
+          <div className="max-w-7xl mx-auto flex items-center gap-4">
+            <BackButton />
+            <Breadcrumb />
+          </div>
         </div>
-      </div>
+      )}
       
-      <div className="pt-16">
+      <div className={navState.stack.length > 1 ? "pt-0 md:pt-4" : ""}>
         {/* Toast Notifications */}
       <AnimatePresence>
         {showSyncSuccess && (

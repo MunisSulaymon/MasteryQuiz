@@ -432,46 +432,46 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
 
       {/* Tabs */}
       <div className="max-w-4xl mx-auto px-6 mt-6">
-        <div className="flex overflow-x-auto no-scrollbar bg-white/50 backdrop-blur p-1 rounded-2xl border border-gray-200">
+        <div className="flex flex-row flex-nowrap gap-1 overflow-x-auto no-scrollbar bg-white/50 backdrop-blur p-1 rounded-2xl border border-gray-200">
           <button 
             onClick={() => setActiveTab('questions')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'questions' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-none shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap md:flex-1 md:px-0 ${activeTab === 'questions' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             Savollar
           </button>
           <button 
             onClick={() => setActiveTab('exam')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'exam' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-none shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap md:flex-1 md:px-0 ${activeTab === 'exam' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             Imtihon
           </button>
           <button 
             onClick={() => setActiveTab('history')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'history' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-none shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap md:flex-1 md:px-0 ${activeTab === 'history' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             Natijalar
           </button>
           <button 
             onClick={() => setActiveTab('import')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'import' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-none shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap md:flex-1 md:px-0 ${activeTab === 'import' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             Import
           </button>
           <button 
             onClick={() => setActiveTab('ai')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'ai' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-none shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap md:flex-1 md:px-0 ${activeTab === 'ai' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             AI Gen
           </button>
           <button 
             onClick={() => setActiveTab('hemis-matn')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'hemis-matn' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-none shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap md:flex-1 md:px-0 ${activeTab === 'hemis-matn' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             HEMIS Matn
           </button>
           <button 
             onClick={() => setActiveTab('manual')}
-            className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+            className={`flex-none shrink-0 px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap md:flex-1 md:px-0 ${activeTab === 'manual' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
           >
             Qo'lda
           </button>
