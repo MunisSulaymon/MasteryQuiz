@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense, Component, ErrorInfo, ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Loader2,
@@ -33,7 +33,6 @@ import MigrationModal from './components/modals/MigrationModal';
 import { localStore } from './utils/localStore';
 
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
-import ErrorBoundary from './components/ErrorBoundary';
 import { BackButton } from './components/navigation/BackButton';
 import { Breadcrumb } from './components/navigation/Breadcrumb';
 
@@ -779,14 +778,56 @@ function AppContent() {
   );
 }
 
+// Simple inline error boundary (replaces src/components/ErrorBoundary.tsx)
+class AppErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('App error:', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+          <h2 className="text-xl font-bold mb-2">Xatolik yuz berdi</h2>
+          <p className="text-gray-600 mb-4">
+            {this.state.error?.message || 'Noma\'lum xatolik'}
+          </p>
+          <button
+            className="px-4 py-2 bg-blue-600 text-white rounded"
+            onClick={() => {
+              this.setState({ hasError: false, error: null });
+              window.location.reload();
+            }}
+          >
+            Qayta yuklash
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
   return (
-    <ErrorBoundary>
+    <AppErrorBoundary>
       <BrowserRouter>
         <NavigationProvider>
           <AppContent />
         </NavigationProvider>
       </BrowserRouter>
-    </ErrorBoundary>
+    </AppErrorBoundary>
   );
 }

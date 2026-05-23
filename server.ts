@@ -11,11 +11,6 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
-  app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-    next();
-  });
-
   const KEY = process.env.GEMINI_API_KEY;
   const genAI = KEY ? new GoogleGenerativeAI(KEY) : null;
 
@@ -55,6 +50,16 @@ async function startServer() {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
+      // Avoid sending index.html for missing assets or source code files like .tsx
+      const ext = path.extname(req.path);
+      if (ext && ext !== '.html') {
+        res.status(404).send('Not Found');
+        return;
+      }
+      if (req.path.startsWith('/src/') || req.path.startsWith('/node_modules/')) {
+        res.status(404).send('Not Found');
+        return;
+      }
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
