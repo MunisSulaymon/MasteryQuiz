@@ -104,22 +104,30 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'PUSH', entry: { view, params, title } });
     window.history.pushState({ view, params, title }, '', `#/${view}`);
     console.log(`[push] Successfully pushed to "${view}" in history`);
-  }, [state.stack.length]);
+  }, [state.stack]);
 
   const pop = useCallback(async () => {
     console.log(`[pop] Attempting pop, current stack=`, state.stack);
-    if (state.stack.length <= 1) {
-      console.warn(`[pop] Cannot pop, stack depth is already ${state.stack.length}`);
-      return;
-    }
     if (!(await checkGuards())) {
       console.warn(`[pop] Blocked by guards. Cannot pop`);
       return;
     }
-    dispatch({ type: 'POP' });
-    window.history.back();
-    console.log(`[pop] Successfully popped, called window.history.back()`);
-  }, [state.stack.length]);
+    if (state.stack.length > 1) {
+      dispatch({ type: 'POP' });
+      window.history.back();
+      console.log(`[pop] Successfully popped, called window.history.back()`);
+    } else {
+      // Fallback for single-entry stacks (e.g. directly loading #/packs or refreshing)
+      const current = state.stack[0]?.view;
+      if (current && current !== 'landing') {
+        console.log(`[pop] Stack depth is 1 on "${current}", returning to landing`);
+        dispatch({ type: 'RESET', entry: { view: 'landing' } });
+        window.history.pushState({ view: 'landing' }, '', '#/landing');
+      } else {
+        console.warn(`[pop] Already at root landing view`);
+      }
+    }
+  }, [state.stack]);
 
   const replace = useCallback(async (view: AppView, params?: any, title?: string) => {
     console.log(`[replace] Attempting replace with: "${view}", current stack=`, state.stack);
@@ -162,11 +170,11 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [state.stack]);
 
-  // Sync initial hash
+  // Sync initial hash (preserve 'landing' at the base of the stack)
   useEffect(() => {
     const hash = window.location.hash.replace('#/', '');
-    if (hash) {
-      dispatch({ type: 'RESET', entry: { view: hash as AppView } });
+    if (hash && hash !== 'landing') {
+      dispatch({ type: 'PUSH', entry: { view: hash as AppView } });
     }
   }, []);
 

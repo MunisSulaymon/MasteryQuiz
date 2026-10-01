@@ -60,7 +60,7 @@ export default function PacksView({
   user,
   onExtend
 }: PacksViewProps) {
-  const { pop } = useNavigation();
+  const { state: navState, pop, reset } = useNavigation();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const weakId = searchParams.get('weak');
@@ -87,8 +87,14 @@ export default function PacksView({
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-12 gap-8">
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => pop()}
-            className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors border border-gray-100 shrink-0"
+            onClick={() => {
+              if (navState.stack.length > 1) {
+                pop();
+              } else {
+                reset('landing');
+              }
+            }}
+            className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center hover:bg-gray-50 transition-colors border border-gray-100 shrink-0 active:scale-95"
             title="Portalga qaytish"
           >
             <ArrowLeft className="w-5 h-5" />

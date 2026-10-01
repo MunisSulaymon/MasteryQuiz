@@ -48,7 +48,7 @@ interface ExamDashboardProps {
 }
 
 export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }: ExamDashboardProps) {
-  const { push, pop } = useNavigation();
+  const { state: navState, push, pop, reset } = useNavigation();
   const [activeTab, setActiveTab] = useState<'questions' | 'import' | 'exam' | 'history' | 'ai' | 'manual' | 'hemis-matn'>('questions');
   const [packs, setPacks] = useState<QuizPack[]>([]);
   const [selectedPackId, setSelectedPackId] = useState<string>('');
@@ -358,8 +358,14 @@ export default function ExamDashboard({ user, onLogin, onStart, onRefreshPacks }
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button 
-              onClick={() => pop()}
-              className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:text-emerald-600 transition-colors"
+              onClick={() => {
+                if (navState.stack.length > 1) {
+                  pop();
+                } else {
+                  reset('landing');
+                }
+              }}
+              className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:text-emerald-600 transition-colors active:scale-95"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
