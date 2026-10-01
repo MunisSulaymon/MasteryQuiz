@@ -9,9 +9,11 @@ import {
   ArrowRight,
   CloudOff,
   CheckCircle2,
-  Loader2
+  Loader2,
+  Send
 } from 'lucide-react';
 import { Question, QuizSession } from '../../types';
+import { getTelegramWebApp } from '../../services/telegramService';
 
 interface SummaryViewProps {
   session: QuizSession;
@@ -145,23 +147,41 @@ export default function SummaryView({ session, onRetry, onNextSet, onHome, user,
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-4 px-4">
+      <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4 px-4">
         <button
           onClick={onNextSet}
-          className="w-full sm:w-auto px-10 py-5 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"
+          className="w-full sm:w-auto px-8 py-5 bg-indigo-600 text-white rounded-2xl font-black text-lg shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"
         >
           <span>Next Set</span>
           <ArrowRight className="w-6 h-6" />
         </button>
         <button
+          onClick={() => {
+            const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://mastery-quiz-three.vercel.app';
+            const text = `🎉 MasteryQuiz: Set ${session.setId} muvaffaqiyatli yakunlandi!\n⏱ Vaqt: ${minutes}m ${seconds}s\n\n👇 Siz ham bilimingizni sinab ko'ring:`;
+            const url = `${baseUrl}/exam?startapp=set_${session.setId}#/packs`;
+            const shareLink = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(text)}`;
+            const tg = getTelegramWebApp();
+            if (tg && typeof tg.openTelegramLink === 'function') {
+              tg.openTelegramLink(shareLink);
+            } else {
+              window.open(shareLink, '_blank', 'noopener,noreferrer');
+            }
+          }}
+          className="w-full sm:w-auto px-8 py-5 bg-sky-500 hover:bg-sky-600 text-white rounded-2xl font-black text-lg shadow-xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-3"
+        >
+          <Send className="w-5 h-5" />
+          <span>Telegramda ulashish</span>
+        </button>
+        <button
           onClick={onRetry}
-          className="w-full sm:w-auto px-10 py-5 bg-white text-gray-700 border-2 border-gray-100 rounded-2xl font-black text-lg shadow-xl hover:scale-105 active:scale-95 transition-all"
+          className="w-full sm:w-auto px-8 py-5 bg-white text-gray-700 border-2 border-gray-100 rounded-2xl font-black text-lg shadow-xl hover:scale-105 active:scale-95 transition-all"
         >
           Retry This Set
         </button>
         <button
           onClick={onHome}
-          className="w-full sm:w-auto px-10 py-5 bg-gray-100 text-gray-500 rounded-2xl font-black text-lg hover:scale-105 active:scale-95 transition-all"
+          className="w-full sm:w-auto px-8 py-5 bg-gray-100 text-gray-500 rounded-2xl font-black text-lg hover:scale-105 active:scale-95 transition-all"
         >
           Sets Menu
         </button>

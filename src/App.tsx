@@ -35,6 +35,7 @@ import { localStore } from './utils/localStore';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { BackButton } from './components/navigation/BackButton';
 import { Breadcrumb } from './components/navigation/Breadcrumb';
+import { initTelegramApp, getTelegramWebApp, getTelegramStartParam } from './services/telegramService';
 
 function AppContent() {
   const { state: navState, push, pop, replace, reset } = useNavigation();
@@ -166,6 +167,43 @@ function AppContent() {
       setIsDataLoading(false);
     }
   }, [user]);
+
+  // Telegram Mini App (TMA) Lifecycle & Viewport Init
+  useEffect(() => {
+    initTelegramApp();
+  }, []);
+
+  // Telegram Native BackButton Synchronizer
+  useEffect(() => {
+    const tg = getTelegramWebApp();
+    if (!tg?.BackButton) return;
+
+    if (navState.stack.length > 1) {
+      tg.BackButton.show();
+      const onTgBack = () => pop();
+      tg.BackButton.onClick(onTgBack);
+      return () => {
+        tg.BackButton.offClick(onTgBack);
+      };
+    } else {
+      tg.BackButton.hide();
+    }
+  }, [navState.stack.length, pop]);
+
+  // Telegram Group Deep-Linking Auto-Selector (e.g. ?startapp=pack_XYZ)
+  const hasHandledTgDeepLink = useRef(false);
+  useEffect(() => {
+    if (hasHandledTgDeepLink.current || packs.length === 0) return;
+    const startParam = getTelegramStartParam();
+    if (startParam && startParam.startsWith('pack_')) {
+      const targetPackId = startParam.replace('pack_', '');
+      const foundPack = packs.find(p => p.id === targetPackId);
+      if (foundPack) {
+        hasHandledTgDeepLink.current = true;
+        handleSelectPack(foundPack);
+      }
+    }
+  }, [packs, handleSelectPack]);
 
   const handleCreateOrUpdatePack = async (packData: Partial<QuizPack>) => {
     setSyncStatus('syncing');

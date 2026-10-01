@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { Question, QuizSession } from '../../types';
 import { shuffleArray } from '../../utils';
+import { telegramHaptics } from '../../services/telegramService';
 
 interface QuizViewProps {
   session: QuizSession;
@@ -69,6 +70,11 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
 
     const isCorrect = answer === activeQuestion.correctAnswer;
     setFeedback(isCorrect ? 'correct' : 'wrong');
+    if (isCorrect) {
+      telegramHaptics.success();
+    } else {
+      telegramHaptics.error();
+    }
 
     let updatedQ: Question | null = null;
     setQuestions(prev => {
@@ -335,7 +341,10 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
                 return (
                   <motion.button
                     key={opt}
-                    onClick={() => handleAnswer(opt)}
+                    onClick={() => {
+                      telegramHaptics.tap('light');
+                      handleAnswer(opt);
+                    }}
                     disabled={!!feedback}
                     className={`group relative p-2 md:p-4 text-left rounded-xl md:rounded-2xl border-2 transition-all flex items-center gap-3 md:gap-4 ${btnClass} active:scale-[0.98]`}
                   >
