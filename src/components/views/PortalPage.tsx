@@ -4,6 +4,10 @@ import { BookOpen, HelpCircle, Settings, LogIn, LogOut, ClipboardCheck, ArrowRig
 import { Link, useNavigate } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { QuizPack } from '../../types';
+import SettingsModal from '../modals/SettingsModal';
+import HelpModal from '../modals/HelpModal';
+import { AnimatePresence } from 'motion/react';
+import { triggerFeedback } from '../../services/dataService';
 
 interface PortalPageProps {
   user: User | null;
@@ -13,11 +17,14 @@ interface PortalPageProps {
   isAuthLoading: boolean;
   onStudy: () => void;
   onExam: () => void;
+  onRefreshData?: () => void;
 }
 
-export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoading, onStudy, onExam }: PortalPageProps) {
+export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoading, onStudy, onExam, onRefreshData }: PortalPageProps) {
   const navigate = useNavigate();
   const [showTooltip, setShowTooltip] = React.useState(false);
+  const [showSettings, setShowSettings] = React.useState(false);
+  const [showHelp, setShowHelp] = React.useState(false);
   const [dismissedTooltip, setDismissedTooltip] = React.useState(() => {
     return localStorage.getItem('portal_tooltip_dismissed') === 'true';
   });
@@ -210,11 +217,25 @@ export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoadi
       <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-gray-100 py-4 px-8 z-40">
         <div className="max-w-[400px] mx-auto flex items-center justify-between">
           <div className="flex gap-6">
-            <button className="flex flex-col items-center gap-1 group">
+            <button 
+              onClick={() => {
+                triggerFeedback('click');
+                setShowSettings(true);
+              }}
+              className="flex flex-col items-center gap-1 group cursor-pointer active:scale-95 transition-transform"
+              title="Sozlamalar"
+            >
               <Settings className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 transition-colors" />
               <span className="text-[10px] font-black uppercase tracking-tighter text-gray-400 group-hover:text-indigo-600 transition-colors">Sozlamalar</span>
             </button>
-            <button className="flex flex-col items-center gap-1 group">
+            <button 
+              onClick={() => {
+                triggerFeedback('click');
+                setShowHelp(true);
+              }}
+              className="flex flex-col items-center gap-1 group cursor-pointer active:scale-95 transition-transform"
+              title="Yordam va qo'llanma"
+            >
               <HelpCircle className="w-5 h-5 text-gray-400 group-hover:text-indigo-600 transition-colors" />
               <span className="text-[10px] font-black uppercase tracking-tighter text-gray-400 group-hover:text-indigo-600 transition-colors">Yordam</span>
             </button>
@@ -228,7 +249,8 @@ export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoadi
               </div>
               <button 
                 onClick={onLogout}
-                className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all border border-gray-100"
+                className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center hover:bg-red-50 text-gray-400 hover:text-red-500 transition-all border border-gray-100 cursor-pointer active:scale-95"
+                title="Chiqish"
               >
                 <LogOut className="w-5 h-5" />
               </button>
@@ -237,7 +259,7 @@ export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoadi
             <button 
               onClick={onLogin}
               disabled={isAuthLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl font-bold text-xs hover:bg-gray-800 transition-colors active:scale-95 disabled:opacity-50"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white rounded-xl font-bold text-xs hover:bg-gray-800 transition-colors active:scale-95 disabled:opacity-50 cursor-pointer"
             >
               <LogIn className="w-4 h-4" />
               Kirish
@@ -245,6 +267,24 @@ export default function PortalPage({ user, packs, onLogin, onLogout, isAuthLoadi
           )}
         </div>
       </nav>
+
+      {/* Modals */}
+      <AnimatePresence>
+        {showSettings && (
+          <SettingsModal
+            isOpen={showSettings}
+            onClose={() => setShowSettings(false)}
+            user={user}
+            onRefreshData={onRefreshData}
+          />
+        )}
+        {showHelp && (
+          <HelpModal
+            isOpen={showHelp}
+            onClose={() => setShowHelp(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

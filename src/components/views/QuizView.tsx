@@ -17,6 +17,7 @@ import {
 import { Question, QuizSession } from '../../types';
 import { shuffleArray } from '../../utils';
 import { telegramHaptics } from '../../services/telegramService';
+import { dataService, triggerFeedback } from '../../services/dataService';
 
 interface QuizViewProps {
   session: QuizSession;
@@ -28,12 +29,15 @@ interface QuizViewProps {
 }
 
 export default function QuizView({ session, onComplete, onBack, onUpdateQuestion, title, isWeakPack }: QuizViewProps) {
+  const userSettings = useMemo(() => dataService.getSettings(), []);
+  const initialTimerVal = userSettings.questionTimer > 0 ? userSettings.questionTimer : 0;
+
   const [questions, setQuestions] = useState<Question[]>(() => [...session.questions]);
   const [currentQueue, setCurrentQueue] = useState<Question[]>([]);
   const [activeQuestion, setActiveQuestion] = useState<Question | null>(null);
   const [shuffledOptions, setShuffledOptions] = useState<string[]>([]);
   const [feedback, setFeedback] = useState<'correct' | 'wrong' | null>(null);
-  const [timer, setTimer] = useState(20);
+  const [timer, setTimer] = useState(initialTimerVal);
   const [rounds, setRounds] = useState(session.rounds || 1);
   const [isCelebration, setIsCelebration] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -46,35 +50,29 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
     return window.confirm("O'rganish progressi saqlanadi. To'xtatmoqchimisiz?");
   }, [masteredCount, total, isCelebration]));
 
+  const handleAnswerRef = useRef<(ans: string | null) => void>(() => {});
+
   const startTimer = useCallback(() => {
     if (timerRef.current) clearInterval(timerRef.current);
+    if (userSettings.questionTimer === 0) return;
     timerRef.current = setInterval(() => {
       setTimer(prev => {
         if (prev <= 1) {
-          handleAnswer(null);
+          handleAnswerRef.current(null);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
-  }, [questions, activeQuestion, feedback]); // We need these to call handleAnswer correctly
+  }, [userSettings.questionTimer]);
 
-  // We need to re-define handleAnswer to be used in startTimer
-  // But wait, handleAnswer depends on activeQuestion.
-  // To avoid circular or complex dependencies, let's use a ref for the latest state if needed
-  // or just accept that startTimer might re-create.
-  
   const handleAnswer = useCallback((answer: string | null) => {
     if (feedback || !activeQuestion) return;
     if (timerRef.current) clearInterval(timerRef.current);
 
     const isCorrect = answer === activeQuestion.correctAnswer;
     setFeedback(isCorrect ? 'correct' : 'wrong');
-    if (isCorrect) {
-      telegramHaptics.success();
-    } else {
-      telegramHaptics.error();
-    }
+    triggerFeedback(isCorrect ? 'success' : 'error');
 
     let updatedQ: Question | null = null;
     setQuestions(prev => {
@@ -115,12 +113,14 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
         setActiveQuestion(next);
         setShuffledOptions(shuffleArray(next.options));
         setFeedback(null);
-        setTimer(20);
+        setTimer(initialTimerVal);
         
         return rest;
       });
     }, 2000);
-  }, [feedback, activeQuestion, onUpdateQuestion, session, questions, onComplete]);
+  }, [feedback, activeQuestion, onUpdateQuestion, session, questions, onComplete, initialTimerVal]);
+
+  handleAnswerRef.current = handleAnswer;
 
   const initQueue = useCallback(() => {
     if (session.mode === 'quick-test') {
@@ -135,7 +135,7 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
       setCurrentQueue(rest);
       setShuffledOptions(shuffleArray(next.options));
       setFeedback(null);
-      setTimer(20);
+      setTimer(initialTimerVal);
       return;
     }
 
@@ -290,9 +290,17 @@ export default function QuizView({ session, onComplete, onBack, onUpdateQuestion
           </div>
 
           <div className="flex items-center gap-2 order-2 md:order-3">
-             <div className={`flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl border md:border-2 transition-colors ${timer <= 5 ? 'bg-red-500/20 border-red-500 text-red-500' : 'bg-slate-700 border-slate-600 text-white'}`}>
-               <Timer className={`w-4 h-4 md:w-5 md:h-5 ${timer <= 5 ? 'animate-pulse' : ''}`} />
-               <span className="font-black text-sm md:text-xl tabular-nums">{timer}s</span>
+             <div className={`flex items-center gap-1 md:gap-2 px-2 md:px-4 py-1 md:py-2 rounded-lg md:rounded-xl border md:border-2 transition-colors ${
+               userSettings.questionTimer === 0 
+                 ? 'bg-slate-700/60 border-slate-600 text-slate-300' 
+                 : timer <= 5 
+                   ? 'bg-red-500/20 border-red-500 text-red-500' 
+                   : 'bg-slate-700 border-slate-600 text-white'
+             }`}>
+               <Timer className={`w-4 h-4 md:w-5 md:h-5 ${userSettings.questionTimer > 0 && timer <= 5 ? 'animate-pulse' : ''}`} />
+               <span className="font-black text-sm md:text-xl tabular-nums">
+                 {userSettings.questionTimer === 0 ? '∞' : `${timer}s`}
+               </span>
              </div>
           </div>
         </div>

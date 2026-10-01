@@ -31,9 +31,10 @@ export default function SelectionView({ sets, onSelect, onQuickTest, onResetSet,
         <div>
           <button 
             onClick={onBack}
-            className="text-[10px] font-black uppercase tracking-widest text-indigo-600 mb-2 flex items-center gap-1 hover:translate-x-[-4px] transition-transform"
+            className="inline-flex items-center gap-2 py-2 px-3 bg-white hover:bg-gray-50 border border-gray-200/80 rounded-xl text-xs font-bold uppercase tracking-wider text-indigo-600 mb-3 shadow-2xs active:scale-95 transition-all cursor-pointer min-h-[44px]"
           >
-            ← Back to Packs
+            <span>←</span>
+            <span>To'plamlarga qaytish</span>
           </button>
           <h2 className="text-4xl font-black mb-2 tracking-tight">Select a Set</h2>
           <p className="text-gray-500 font-medium">Found {totalQuestions} questions.</p>

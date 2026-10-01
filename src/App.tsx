@@ -90,14 +90,6 @@ function AppContent() {
     try {
       const packs = await dataService.getPacks();
       setPacks(packs);
-      
-      // If we are at the very beginning (stack depth 1) and on landing,
-      // and we have packs, we probably want to show packs view on initial start.
-      if (!hasAutoRedirected.current && navState.stack.length === 1 && currentEntry.view === 'landing' && packs.length > 0) {
-         console.log("[APP] Initial load: auto-pushing to packs view");
-         hasAutoRedirected.current = true;
-         push('packs');
-      }
       setSyncStatus(user ? 'synced' : 'offline');
     } catch (err) {
       console.error("Load initial data error:", err);
@@ -105,7 +97,7 @@ function AppContent() {
     } finally {
       setIsDataLoading(false);
     }
-  }, [user, currentEntry.view, navState.stack.length, push]);
+  }, [user]);
 
   const handleSelectPack = useCallback(async (pack: QuizPack) => {
     setActivePack(pack);
@@ -642,16 +634,16 @@ function AppContent() {
       <SyncIndicator />
       
       {/* Shell / Navigation Bar */}
-      {navState.stack.length > 1 && (
-        <div className="sticky top-0 w-full z-[55] bg-white/60 backdrop-blur-xl border-b border-gray-100 px-4 py-3 hidden md:block">
-          <div className="max-w-7xl mx-auto flex items-center gap-4">
+      {navState.stack.length > 1 && currentEntry.view !== 'quiz' && currentEntry.view !== 'drill' && currentEntry.view !== 'exam-run' && (
+        <div className="sticky top-0 w-full z-[55] bg-white/85 backdrop-blur-xl border-b border-gray-100 px-3 py-2.5 md:px-6 md:py-3 shadow-xs">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
             <BackButton />
             <Breadcrumb />
           </div>
         </div>
       )}
       
-      <div className={navState.stack.length > 1 ? "pt-0 md:pt-4" : ""}>
+      <div className={navState.stack.length > 1 && currentEntry.view !== 'quiz' && currentEntry.view !== 'drill' && currentEntry.view !== 'exam-run' ? "pt-0 md:pt-2" : ""}>
         {/* Toast Notifications */}
       <AnimatePresence>
         {showSyncSuccess && (
@@ -713,6 +705,7 @@ function AppContent() {
                     isAuthLoading={isAuthLoading}
                     onStudy={() => push('packs')}
                     onExam={() => push('exam')}
+                    onRefreshData={() => loadInitialData(true)}
                   />
                 </motion.div>
               )}
@@ -799,7 +792,7 @@ function AppContent() {
                       if (next) startSet(next, 'leitner');
                       else push('selection');
                     }}
-                    onHome={() => reset('packs')}
+                    onHome={() => activePack ? push('selection') : push('packs')}
                     onLogout={handleLogout}
                     user={user}
                     onDrill={startDrill}

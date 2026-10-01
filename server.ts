@@ -1,8 +1,12 @@
 import express from "express";
 import path from "path";
 import cors from "cors";
+import dotenv from "dotenv";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { createServer as createViteServer } from "vite";
+import { initTelegramBot, getTelegramBotStatus, handleTelegramMessage } from "./src/server/telegramBot";
+
+dotenv.config();
 
 async function startServer() {
   const app = express();
@@ -11,11 +15,33 @@ async function startServer() {
   app.use(cors());
   app.use(express.json());
 
+  // Initialize Telegram Bot runner
+  initTelegramBot().catch(err => {
+    console.error("[Telegram Bot] Init error:", err);
+  });
+
   const KEY = process.env.GEMINI_API_KEY;
   const genAI = KEY ? new GoogleGenerativeAI(KEY) : null;
 
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", keyExists: !!KEY });
+    res.json({ 
+      status: "ok", 
+      keyExists: !!KEY,
+      telegram: getTelegramBotStatus()
+    });
+  });
+
+  app.get("/api/telegram/status", (req, res) => {
+    res.json(getTelegramBotStatus());
+  });
+
+  app.post("/api/telegram/webhook", async (req, res) => {
+    const token = process.env.TELEGRAM_BOT_TOKEN || process.env.BOT_TOKEN;
+    const appUrl = process.env.APP_URL || 'https://mastery-quiz-three.vercel.app';
+    if (token && req.body?.message) {
+      await handleTelegramMessage(token, appUrl, req.body.message);
+    }
+    res.json({ ok: true });
   });
 
   // This route is now redundant with api/generate-questions.js on Vercel,

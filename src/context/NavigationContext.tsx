@@ -71,6 +71,8 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
 
   const guards = useRef<Record<string, () => Promise<boolean> | boolean>>({});
 
+  const isProgrammaticPopRef = useRef(false);
+
   const registerGuard = useCallback((id: string, guard: () => Promise<boolean> | boolean) => {
     guards.current[id] = guard;
   }, []);
@@ -113,16 +115,25 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (state.stack.length > 1) {
+      isProgrammaticPopRef.current = true;
       dispatch({ type: 'POP' });
-      window.history.back();
-      console.log(`[pop] Successfully popped, called window.history.back()`);
+      const targetView = state.stack[state.stack.length - 2]?.view || 'landing';
+      window.history.replaceState({ view: targetView }, '', `#/${targetView}`);
+      setTimeout(() => {
+        isProgrammaticPopRef.current = false;
+      }, 150);
+      console.log(`[pop] Successfully popped to "${targetView}"`);
     } else {
       // Fallback for single-entry stacks (e.g. directly loading #/packs or refreshing)
       const current = state.stack[0]?.view;
       if (current && current !== 'landing') {
         console.log(`[pop] Stack depth is 1 on "${current}", returning to landing`);
+        isProgrammaticPopRef.current = true;
         dispatch({ type: 'RESET', entry: { view: 'landing' } });
-        window.history.pushState({ view: 'landing' }, '', '#/landing');
+        window.history.replaceState({ view: 'landing' }, '', '#/landing');
+        setTimeout(() => {
+          isProgrammaticPopRef.current = false;
+        }, 150);
       } else {
         console.warn(`[pop] Already at root landing view`);
       }
@@ -151,15 +162,20 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
+      if (isProgrammaticPopRef.current) {
+        isProgrammaticPopRef.current = false;
+        return;
+      }
+
       const hash = window.location.hash.replace('#/', '');
       const targetView = (hash || 'landing') as AppView;
 
       // Avoid unnecessary state updates if we're already on the right view at the top of the stack
-      const currentView = state.stack[state.stack.length - 1].view;
+      const currentView = state.stack[state.stack.length - 1]?.view;
       if (currentView === targetView) return;
 
-      // Check if target is the previous one in stack (meaning it was probably a back action)
-      if (state.stack.length > 1 && state.stack[state.stack.length - 2].view === targetView) {
+      // Check if target is the previous one in stack (meaning browser back was clicked)
+      if (state.stack.length > 1 && state.stack[state.stack.length - 2]?.view === targetView) {
         dispatch({ type: 'POP' });
       } else {
         dispatch({ type: 'RESET', entry: { view: targetView, params: event.state?.params } });

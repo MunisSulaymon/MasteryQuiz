@@ -16,25 +16,43 @@ import {
 
 const STORAGE_KEY = 'masteryquiz_guest_data';
 
+export interface AppSettings {
+  lastSynced?: number;
+  dismissedBanners: string[];
+  questionTimer: number; // 0 = off, 15, 20, 30, 45 seconds
+  defaultSetSize: number; // 10, 15, 20, 25, 30
+  soundEnabled: boolean;
+  hapticsEnabled: boolean;
+  theme: 'light' | 'dark' | 'system';
+  examQuestionCount: number;
+  examTimeMinutes: number;
+}
+
 interface AppData {
   packs: QuizPack[];
   questions: { [packId: string]: ExamQuestion[] };
   examHistory: ExamHistory[];
   packData: { [packId: string]: any };
-  settings: {
-    lastSynced?: number;
-    dismissedBanners: string[];
-  };
+  settings: AppSettings;
 }
+
+const DEFAULT_SETTINGS: AppSettings = {
+  dismissedBanners: [],
+  questionTimer: 20,
+  defaultSetSize: 20,
+  soundEnabled: true,
+  hapticsEnabled: true,
+  theme: 'light',
+  examQuestionCount: 25,
+  examTimeMinutes: 25
+};
 
 const DEFAULT_DATA: AppData = {
   packs: [],
   questions: {},
   examHistory: [],
   packData: {},
-  settings: {
-    dismissedBanners: []
-  }
+  settings: DEFAULT_SETTINGS
 };
 
 class DataService {
@@ -483,14 +501,89 @@ class DataService {
   }
 
   // --- Settings ---
-  getSettings() {
-    return this.memoryData.settings;
+  getSettings(): AppSettings {
+    return { ...DEFAULT_SETTINGS, ...this.memoryData.settings };
   }
 
-  updateSettings(updates: Partial<AppData['settings']>) {
-    this.memoryData.settings = { ...this.memoryData.settings, ...updates };
+  updateSettings(updates: Partial<AppSettings>) {
+    this.memoryData.settings = { ...DEFAULT_SETTINGS, ...this.memoryData.settings, ...updates };
     this.saveToLocalStorage();
   }
+
+  clearGuestCache() {
+    this.memoryData = { ...DEFAULT_DATA };
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      console.error('Failed to clear cache', e);
+    }
+  }
+
+  getStorageStats() {
+    let sizeBytes = 0;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY) || '';
+      sizeBytes = raw.length * 2;
+    } catch {}
+    const totalPacks = this.memoryData.packs.length;
+    const totalQuestions = this.memoryData.packs.reduce((acc, p) => acc + (p.questionCount || 0), 0);
+    return {
+      totalPacks,
+      totalQuestions,
+      sizeBytes
+    };
+  }
 }
+
+export const triggerFeedback = (type: 'success' | 'error' | 'click' = 'click') => {
+  try {
+    const settings = dataService.getSettings();
+    if (settings.hapticsEnabled) {
+      const tg = (window as any).Telegram?.WebApp;
+      if (tg?.HapticFeedback) {
+        if (type === 'success') tg.HapticFeedback.notificationOccurred('success');
+        else if (type === 'error') tg.HapticFeedback.notificationOccurred('error');
+        else tg.HapticFeedback.impactOccurred('light');
+      } else if (typeof navigator !== 'undefined' && navigator.vibrate) {
+        navigator.vibrate(type === 'error' ? [30, 40, 30] : 15);
+      }
+    }
+    if (settings.soundEnabled && typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioCtx) {
+        const ctx = new AudioCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        const now = ctx.currentTime;
+        if (type === 'success') {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(523.25, now);
+          osc.frequency.exponentialRampToValueAtTime(659.25, now + 0.1);
+          gain.gain.setValueAtTime(0.08, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          osc.start(now);
+          osc.stop(now + 0.2);
+        } else if (type === 'error') {
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(240, now);
+          osc.frequency.exponentialRampToValueAtTime(160, now + 0.15);
+          gain.gain.setValueAtTime(0.09, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+          osc.start(now);
+          osc.stop(now + 0.2);
+        } else {
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, now);
+          gain.gain.setValueAtTime(0.04, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        }
+      }
+    }
+  } catch {}
+};
 
 export const dataService = new DataService();
